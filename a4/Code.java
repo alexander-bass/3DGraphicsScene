@@ -68,7 +68,6 @@ public class Code extends JFrame implements GLEventListener {
     private int skyboxTexture, groundPlaneTexture, rubberDuckTexture, gnomeTexture;
     private int groundPlaneNormalMap, rubberDuckNormalMap, gnomeNormalMap;
 
-
     // display function variables
     private FloatBuffer vals = Buffers.newDirectFloatBuffer(16);
     private Matrix4f pMat = new Matrix4f();
@@ -120,7 +119,7 @@ public class Code extends JFrame implements GLEventListener {
     private int sLoc;
 
     // white light properties
-    private float[] globalAmbient = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+    private float[] globalAmbient = new float[] { 0.6f, 0.6f, 0.6f, 0.6f };
 	private float[] lightAmbient = new float[] { 0.1f, 0.1f, 0.1f, 1.0f };
 	private float[] lightDiffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
 	private float[] lightSpecular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -576,8 +575,8 @@ public class Code extends JFrame implements GLEventListener {
 
         renderingProgramDefault = Utils.createShaderProgram("assets/shaders/default.vert", "assets/shaders/default.frag");
         renderingProgramCubeMap = Utils.createShaderProgram("assets/shaders/cubemap.vert", "assets/shaders/cubemap.frag");
-        renderingProgramShadow = Utils.createShaderProgram("assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
-        renderingProgramNoTex = Utils.createShaderProgram("assets/shaders/worldaxes.vert", "assets/shaders/worldaxes.frag");
+        renderingProgramShadow = Utils.createShaderProgram("assets/shaders/shadowmap.vert", "assets/shaders/shadowmap.frag");
+        renderingProgramNoTex = Utils.createShaderProgram("assets/shaders/notex.vert", "assets/shaders/notex.frag");
 
         // set perspective matrix, only changes when screen is resized
         aspect = (float) myCanvas.getWidth() / (float) myCanvas.getHeight();
@@ -846,44 +845,6 @@ public class Code extends JFrame implements GLEventListener {
         float[] matDif = Utils.plasterDiffuse();
         float[] matSpe = Utils.plasterSpecular();
         float matShi = Utils.plasterShininess();
-
-        mambLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.ambient");
-		mdiffLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.diffuse");
-		mspecLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.specular");
-		mshiLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.shininess");
-
-        gl.glProgramUniform4fv(renderingProgramDefault, mambLoc, 1, matAmb, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mdiffLoc, 1, matDif, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mspecLoc, 1, matSpe, 0);
-		gl.glProgramUniform1f(renderingProgramDefault, mshiLoc, matShi);
-    }
-
-    private void setMaterialBronze() {
-        GL4 gl = (GL4) GLContext.getCurrentGL();
-
-        float[] matAmb = Utils.bronzeAmbient();
-        float[] matDif = Utils.bronzeDiffuse();
-        float[] matSpe = Utils.bronzeSpecular();
-        float matShi = Utils.bronzeShininess();
-
-        mambLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.ambient");
-		mdiffLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.diffuse");
-		mspecLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.specular");
-		mshiLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.shininess");
-
-        gl.glProgramUniform4fv(renderingProgramDefault, mambLoc, 1, matAmb, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mdiffLoc, 1, matDif, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mspecLoc, 1, matSpe, 0);
-		gl.glProgramUniform1f(renderingProgramDefault, mshiLoc, matShi);
-    }
-
-    private void setMaterialSilver() {
-        GL4 gl = (GL4) GLContext.getCurrentGL();
-
-        float[] matAmb = Utils.silverAmbient();
-        float[] matDif = Utils.silverDiffuse();
-        float[] matSpe = Utils.silverSpecular();
-        float matShi = Utils.silverShininess();
 
         mambLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.ambient");
 		mdiffLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.diffuse");
