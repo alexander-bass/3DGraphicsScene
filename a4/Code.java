@@ -4,6 +4,7 @@ import javax.swing.JFrame;
 
 import static com.jogamp.opengl.GL.GL_ARRAY_BUFFER;
 import static com.jogamp.opengl.GL.GL_CCW;
+import static com.jogamp.opengl.GL.GL_CLAMP_TO_EDGE;
 import static com.jogamp.opengl.GL.GL_COLOR_BUFFER_BIT;
 import static com.jogamp.opengl.GL.GL_CULL_FACE;
 import static com.jogamp.opengl.GL.GL_DEPTH_ATTACHMENT;
@@ -20,6 +21,7 @@ import static com.jogamp.opengl.GL.GL_POLYGON_OFFSET_FILL;
 import static com.jogamp.opengl.GL.GL_STATIC_DRAW;
 import static com.jogamp.opengl.GL.GL_TEXTURE0;
 import static com.jogamp.opengl.GL.GL_TEXTURE1;
+import static com.jogamp.opengl.GL.GL_TEXTURE2;
 import static com.jogamp.opengl.GL.GL_TEXTURE_2D;
 import static com.jogamp.opengl.GL.GL_TEXTURE_CUBE_MAP;
 import static com.jogamp.opengl.GL.GL_TEXTURE_MAG_FILTER;
@@ -27,10 +29,13 @@ import static com.jogamp.opengl.GL.GL_TEXTURE_MIN_FILTER;
 import static com.jogamp.opengl.GL.GL_TEXTURE_WRAP_S;
 import static com.jogamp.opengl.GL.GL_TEXTURE_WRAP_T;
 import static com.jogamp.opengl.GL.GL_TRIANGLES;
+import static com.jogamp.opengl.GL2ES2.GL_COMPARE_REF_TO_TEXTURE;
+import static com.jogamp.opengl.GL2ES2.GL_DEPTH_COMPONENT;
+import static com.jogamp.opengl.GL2ES2.GL_TEXTURE_COMPARE_FUNC;
+import static com.jogamp.opengl.GL2ES2.GL_TEXTURE_COMPARE_MODE;
 import static com.jogamp.opengl.GL2GL3.GL_TEXTURE_CUBE_MAP_SEAMLESS;
 import static com.jogamp.opengl.GL.GL_NONE;
 import static com.jogamp.opengl.GL.GL_FRONT;
-import static com.jogamp.opengl.GL4.*;
 
 import java.nio.FloatBuffer;
 import java.lang.Math;
@@ -51,7 +56,7 @@ import org.joml.*;
 public class Code extends JFrame implements GLEventListener {
     // game initialization variables
     private GLCanvas myCanvas;
-    private int renderingProgramDefault, renderingProgramCubeMap, renderingProgramShadow;
+    private int renderingProgramDefault, renderingProgramCubeMap, renderingProgramShadow, renderingProgramNoTex;
     private int vao[] = new int[1];
     private int vbo[] = new int[30];
     private Camera cam;
@@ -59,8 +64,9 @@ public class Code extends JFrame implements GLEventListener {
 
     // variables for imported models and textures
     private int numObjVertices;
-    private ImportedModel rubberDuckModel;
-    private int skyboxTexture, groundPlaneTexture, rubberDuckTexture;
+    private ImportedModel rubberDuckModel, gnomeModel;
+    private int skyboxTexture, groundPlaneTexture, rubberDuckTexture, gnomeTexture;
+    private int groundPlaneNormalMap, rubberDuckNormalMap, gnomeNormalMap;
 
 
     // display function variables
@@ -69,7 +75,7 @@ public class Code extends JFrame implements GLEventListener {
     private Matrix4f vMat = new Matrix4f();
     private Matrix4f mMat = new Matrix4f();
     private Matrix4f invTrMat = new Matrix4f();
-    private int mLoc, pLoc, tfLoc, utLoc, acLoc, vLoc, nLoc;
+    private int mLoc, pLoc, tfLoc, acLoc, vLoc, nLoc;
     private int globalAmbLoc, ambLoc, diffLoc, specLoc, posLoc, mambLoc, mdiffLoc, mspecLoc, mshiLoc;
     private float aspect;
     private long prevDisplayTime, currDisplayTime;
@@ -81,29 +87,19 @@ public class Code extends JFrame implements GLEventListener {
     // camera control input variables
     private float yaw, pitch, forward, up, right;
 
-    // white light properties
-    float[] globalAmbient = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
-	float[] lightAmbient = new float[] { 0.1f, 0.1f, 0.1f, 1.0f };
-	float[] lightDiffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
-	float[] lightSpecular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
-
     // rotate facade
     private Quaternionf rotateQuat = new Quaternionf();
 
     // inital positions
-    private Vector3f initialLightPos = new Vector3f(0f, 0f, 2.3f);
+    private Vector3f initialLightPos = new Vector3f(0f, 0f, 3.0f);
     private Vector3f initialDuckPos = new Vector3f(0, 0, 1);
     private Vector3f initialCameraPos = new Vector3f(0, 0, 2);
-    private Vector3f testCubePos = new Vector3f(1, 0, 0.5f);
-    private float testCubeScale = 0.3f;
-    
-
-    // Duck movement variables
-    private Vector3f duckPosition = new Vector3f();
-    private Vector3f duckDestination = new Vector3f();
-    private Vector3f origin = new Vector3f(0, 1, 0);
+    private Vector3f initialGnomePos = new Vector3f(1, 0, 1);
     private Quaternionf duckRotation = new Quaternionf();
     
+    // for the light to point at
+    private Vector3f origin = new Vector3f(0, 0, 0);
+    private Vector3f upVec = new Vector3f(0, 1, 0);
 
     // Light control variables
     private float lightSpeed = 1f;
@@ -111,8 +107,6 @@ public class Code extends JFrame implements GLEventListener {
 	private float[] lightPos = new float[3];
     private boolean lightToggleWasPressed = false;
     private boolean renderLight = true;
-    private Vector3f upVec = new Vector3f(0, 1, 0);
-    private Vector3f duckUpVec = new Vector3f(0, 1, 1);
 
     // shadow stuff
     private int scSizeX, scSizeY;
@@ -125,6 +119,11 @@ public class Code extends JFrame implements GLEventListener {
     private Matrix4f b = new Matrix4f();
     private int sLoc;
 
+    // white light properties
+    private float[] globalAmbient = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+	private float[] lightAmbient = new float[] { 0.1f, 0.1f, 0.1f, 1.0f };
+	private float[] lightDiffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+	private float[] lightSpecular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
 
 
     public Code() {
@@ -172,9 +171,11 @@ public class Code extends JFrame implements GLEventListener {
         vMat = cam.getViewMatrix();
 
         drawSkybox();
+        drawWorldAxes();
+        drawLight();
 
-        lightVmat.identity().setLookAt(currentLightPos, duckPosition, duckUpVec);
-        lightPmat.identity().setPerspective((float) Math.toRadians(60), aspect, 0.1f, 1000.0f);
+        lightVmat.identity().setLookAt(currentLightPos, origin, upVec);
+        lightPmat.identity().setPerspective((float) Math.toRadians(90), aspect, 0.1f, 1000.0f);
 
         gl.glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer[0]);
         gl.glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowTex[0], 0);
@@ -182,7 +183,7 @@ public class Code extends JFrame implements GLEventListener {
         gl.glDrawBuffer(GL_NONE);
         gl.glEnable(GL_DEPTH_TEST);
         gl.glEnable(GL_POLYGON_OFFSET_FILL);
-        gl.glPolygonOffset(3, 5);
+        gl.glPolygonOffset(2.0f, 4.0f);
 
         passOne();
 
@@ -204,9 +205,33 @@ public class Code extends JFrame implements GLEventListener {
 
         sLoc = gl.glGetUniformLocation(renderingProgramShadow, "shadowMVP");
 
+        gl.glClear(GL_DEPTH_BUFFER_BIT);
+        gl.glEnable(GL_CULL_FACE);
+		gl.glFrontFace(GL_CCW);
+        gl.glEnable(GL_DEPTH_TEST);
+        gl.glDepthFunc(GL_LEQUAL);
+
+        // draw ground plane
+        mMat.identity();
+        mMat.rotate(rotateQuat.rotationX((float) Math.toRadians(90)));
+        mMat.scale(3f);
+
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+        gl.glDrawArrays(GL_TRIANGLES, 0, 18);
+
         // draw duck
         mMat.identity();
-        mMat.translate(duckPosition);
+        mMat.translate(initialDuckPos);
         mMat.rotate(duckRotation);
         
         shadowMVP1.identity();
@@ -216,42 +241,30 @@ public class Code extends JFrame implements GLEventListener {
         
         gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
 		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(0);
 
-        gl.glClear(GL_DEPTH_BUFFER_BIT);
-		gl.glEnable(GL_CULL_FACE);
-		gl.glFrontFace(GL_CCW);
-		gl.glEnable(GL_DEPTH_TEST);
-		gl.glDepthFunc(GL_LEQUAL);
-
         gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
         
-        /*
-        // draw testcube
+        
+        // draw gnome
         mMat.identity();
-        mMat.translate(testCubePos);
-        mMat.scale(testCubeScale);
+        mMat.translate(initialGnomePos);
 
         shadowMVP1.identity();
         shadowMVP1.mul(lightPmat);
         shadowMVP1.mul(lightVmat);
         shadowMVP1.mul(mMat);
-        
+
         gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[7]);
-		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(0);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[14]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
 
-        gl.glClear(GL_DEPTH_BUFFER_BIT);
-		gl.glDisable(GL_CULL_FACE);
-		gl.glEnable(GL_DEPTH_TEST);
-		gl.glDepthFunc(GL_LEQUAL);
-
-        gl.glDrawArrays(GL_TRIANGLES, 0, 36);
-        */
+        gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
+        
     }
 
     private void passTwo() {
@@ -263,23 +276,18 @@ public class Code extends JFrame implements GLEventListener {
         pLoc = gl.glGetUniformLocation(renderingProgramDefault, "p_matrix");
         nLoc = gl.glGetUniformLocation(renderingProgramDefault, "norm_matrix");
         sLoc = gl.glGetUniformLocation(renderingProgramDefault, "shadowMVP");
-        tfLoc = gl.glGetUniformLocation(renderingProgramDefault, "tileCount");  // tiling factor used in vertex shader to scale the texture coordinates of a model
-        utLoc = gl.glGetUniformLocation(renderingProgramDefault, "useTexture"); // toggle whether to use texture or plain RGB values, only used for world axes
-        acLoc = gl.glGetUniformLocation(renderingProgramDefault, "axisColor"); // RGB value applied to world axes
+        tfLoc = gl.glGetUniformLocation(renderingProgramDefault, "tileCount");
         
         installLights();
-        
-        if (renderAxes) {
-            drawWorldAxes();
-        }
 
-        if (renderLight) {
-            drawLight();
-        }
+        gl.glEnable(GL_CULL_FACE);
+		gl.glFrontFace(GL_CCW);
+		gl.glEnable(GL_DEPTH_TEST);
+		gl.glDepthFunc(GL_LEQUAL);
 
         drawEnvironment();
         drawRubberDuck();
-        drawTestCube();
+        drawGnome();
     }
 
     private void drawSkybox() {
@@ -311,77 +319,50 @@ public class Code extends JFrame implements GLEventListener {
 
     private void drawWorldAxes() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
+
+        if (!renderAxes) return;
+
+        gl.glUseProgram(renderingProgramNoTex);
+
+        mLoc = gl.glGetUniformLocation(renderingProgramNoTex, "m_matrix");
+        vLoc = gl.glGetUniformLocation(renderingProgramNoTex, "v_matrix");
+        pLoc = gl.glGetUniformLocation(renderingProgramNoTex, "p_matrix");
+        acLoc = gl.glGetUniformLocation(renderingProgramNoTex, "axisColor");
+
+        gl.glEnable(GL_DEPTH_TEST);
+        gl.glDepthFunc(GL_LEQUAL);
+        gl.glEnable(GL_LINE_SMOOTH);
+        gl.glLineWidth(3);
+
         mMat.identity();
-            mMat.scale(5);
+        mMat.scale(5);
 
-            gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
-            gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
-            gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-            gl.glUniform1i(tfLoc, 1);
-            gl.glUniform1i(utLoc, 0);   // turn off texturing
-            gl.glUniform3f(acLoc, 255, 0, 0);   // specify solid color
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+        gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniform3f(acLoc, 255, 0, 0);   // specify solid color
 
-            gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-            gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-            gl.glEnableVertexAttribArray(0);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
 
-            gl.glActiveTexture(GL_TEXTURE0);
-            gl.glBindTexture(GL_TEXTURE_2D, 0);
+        gl.glDrawArrays(GL_LINES, 0, 2);
 
-            gl.glEnable(GL_DEPTH_TEST);
-            gl.glDepthFunc(GL_LEQUAL);
-            gl.glEnable(GL_LINE_SMOOTH);
-            gl.glLineWidth(3);
+        gl.glUniform3f(acLoc, 0, 255, 0);   // specify solid color
 
-            gl.glDrawArrays(GL_LINES, 0, 2);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
 
-            mMat.identity();
-            mMat.scale(5);
+        gl.glDrawArrays(GL_LINES, 0, 2);
 
-            gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
-            gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
-            gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-            gl.glUniform1i(tfLoc, 1);
-            gl.glUniform1i(utLoc, 0);
-            gl.glUniform3f(acLoc, 0, 255, 0);
+        gl.glUniform3f(acLoc, 0, 0, 255);   // specify solid color
 
-            gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-            gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-            gl.glEnableVertexAttribArray(0);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
 
-            gl.glActiveTexture(GL_TEXTURE0);
-            gl.glBindTexture(GL_TEXTURE_2D, 0);
-
-            gl.glEnable(GL_DEPTH_TEST);
-            gl.glDepthFunc(GL_LEQUAL);
-            gl.glEnable(GL_LINE_SMOOTH);
-            gl.glLineWidth(3);
-
-            gl.glDrawArrays(GL_LINES, 0, 2);
-
-            mMat.identity();
-            mMat.scale(5);
-
-            gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
-            gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
-            gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-            gl.glUniform1i(tfLoc, 1);
-            gl.glUniform1i(utLoc, 0);
-            gl.glUniform3f(acLoc, 0, 0, 255);
-
-            gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-            gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-            gl.glEnableVertexAttribArray(0);
-
-            gl.glActiveTexture(GL_TEXTURE0);
-            gl.glBindTexture(GL_TEXTURE_2D, 0);
-
-            gl.glEnable(GL_DEPTH_TEST);
-            gl.glDepthFunc(GL_LEQUAL);
-            gl.glEnable(GL_LINE_SMOOTH);
-            gl.glLineWidth(3);
-
-            gl.glDrawArrays(GL_LINES, 0, 2);
+        gl.glDrawArrays(GL_LINES, 0, 2);
     }
 
     private void drawEnvironment() {
@@ -407,9 +388,7 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
         gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
         gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
-
         gl.glUniform1i(tfLoc, 1);
-        gl.glUniform1i(utLoc, 1);
 
 		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
 		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
@@ -423,19 +402,28 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(2);
 
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[10]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[11]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
 		gl.glActiveTexture(GL_TEXTURE0);
 		gl.glBindTexture(GL_TEXTURE_2D, groundPlaneTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, groundPlaneNormalMap);
         /*
         gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         */
 
-		gl.glEnable(GL_CULL_FACE);
-		gl.glFrontFace(GL_CCW);
-		gl.glEnable(GL_DEPTH_TEST);
-		gl.glDepthFunc(GL_LEQUAL);
-
 		gl.glDrawArrays(GL_TRIANGLES, 0, 18);
+
+        gl.glDisableVertexAttribArray(3);
+        gl.glDisableVertexAttribArray(4);
     }
     
     private void drawRubberDuck() {
@@ -444,7 +432,7 @@ public class Code extends JFrame implements GLEventListener {
         setMaterialPlaster();
         
         mMat.identity();
-        mMat.translate(duckPosition);
+        mMat.translate(initialDuckPos);
         mMat.rotate(duckRotation);
 
         mMat.invert(invTrMat);
@@ -461,76 +449,76 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
         gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
         gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
-
         gl.glUniform1i(tfLoc, 1);
-        gl.glUniform1i(utLoc, 1);
 
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
 		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(0);
 
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[17]);
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[10]);
 		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(1);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[11]);
 		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[12]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[13]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
 
 		gl.glActiveTexture(GL_TEXTURE0);
 		gl.glBindTexture(GL_TEXTURE_2D, rubberDuckTexture);
 
-		gl.glEnable(GL_CULL_FACE);
-		gl.glFrontFace(GL_CCW);
-		gl.glEnable(GL_DEPTH_TEST);
-		gl.glDepthFunc(GL_LEQUAL);
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, rubberDuckNormalMap);
 
 		gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
     }
 
     private void drawLight() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
+
+        if (!renderLight) return;
+
+        gl.glUseProgram(renderingProgramNoTex);
+
+        mLoc = gl.glGetUniformLocation(renderingProgramNoTex, "m_matrix");
+        vLoc = gl.glGetUniformLocation(renderingProgramNoTex, "v_matrix");
+        pLoc = gl.glGetUniformLocation(renderingProgramNoTex, "p_matrix");
+        acLoc = gl.glGetUniformLocation(renderingProgramNoTex, "axisColor");
+
+        gl.glEnable(GL_DEPTH_TEST);
+        gl.glDepthFunc(GL_LEQUAL);
         
         // Draw a small duck at light position
         mMat.identity();
         mMat.translate(currentLightPos);
         mMat.scale(0.3f); // Small size for the light indicator
-        mMat.invert(invTrMat);
-        invTrMat.transpose(invTrMat);
         
         gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
         gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
         gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
-        gl.glUniform1i(tfLoc, 1);
-        gl.glUniform1i(utLoc, 0); // No texture
         gl.glUniform3f(acLoc, 1.0f, 1.0f, 0.0f); // Yellow color
         
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
         gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
         gl.glEnableVertexAttribArray(0);
         
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[17]);
-        gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
-        gl.glEnableVertexAttribArray(1);
-        
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
-        gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
-        gl.glEnableVertexAttribArray(2);
-        
-        gl.glEnable(GL_DEPTH_TEST);
-        gl.glDepthFunc(GL_LEQUAL);
         gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
     }
 
-    private void drawTestCube() {
+    private void drawGnome() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
         setMaterialPlaster();
         
         mMat.identity();
-        mMat.translate(testCubePos);
-        mMat.scale(testCubeScale);
+        mMat.translate(initialGnomePos);
 
         mMat.invert(invTrMat);
         invTrMat.transpose(invTrMat);
@@ -546,30 +534,36 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
         gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
         gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
-
         gl.glUniform1i(tfLoc, 1);
-        gl.glUniform1i(utLoc, 1);
 
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[7]);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[14]);
 		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(0);
 
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[8]);
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[15]);
 		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(1);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
 		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
 		gl.glEnableVertexAttribArray(2);
 
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[17]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
 		gl.glActiveTexture(GL_TEXTURE0);
-		gl.glBindTexture(GL_TEXTURE_2D, rubberDuckTexture);
+		gl.glBindTexture(GL_TEXTURE_2D, gnomeTexture);
 
-        gl.glDisable(GL_CULL_FACE);
-		gl.glEnable(GL_DEPTH_TEST);
-		gl.glDepthFunc(GL_LEQUAL);
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, gnomeNormalMap);
 
-		gl.glDrawArrays(GL_TRIANGLES, 0, 36);
+		gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
     }
 
     @Override
@@ -578,10 +572,12 @@ public class Code extends JFrame implements GLEventListener {
 
         // import models and create rendering program by compiling and linking shaders
         rubberDuckModel = new ImportedModel("assets/models/rubber_duck_toy_1k.obj");
+        gnomeModel = new ImportedModel("assets/models/garden_gnome_1k.obj");
 
         renderingProgramDefault = Utils.createShaderProgram("assets/shaders/default.vert", "assets/shaders/default.frag");
         renderingProgramCubeMap = Utils.createShaderProgram("assets/shaders/cubemap.vert", "assets/shaders/cubemap.frag");
         renderingProgramShadow = Utils.createShaderProgram("assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
+        renderingProgramNoTex = Utils.createShaderProgram("assets/shaders/worldaxes.vert", "assets/shaders/worldaxes.frag");
 
         // set perspective matrix, only changes when screen is resized
         aspect = (float) myCanvas.getWidth() / (float) myCanvas.getHeight();
@@ -604,14 +600,18 @@ public class Code extends JFrame implements GLEventListener {
         
         // load all textures that will be used
         rubberDuckTexture =  Utils.loadTexture("assets/textures/rubber_duck_toy_diff_1k.jpg");
+        rubberDuckNormalMap = Utils.loadTexture("assets/textures/rubber_duck_toy_nor_gl_1k.jpg");
 
-        groundPlaneTexture = Utils.loadTexture("assets/textures/herringbone_brick_02_diff_4k.jpg");
+        gnomeTexture = Utils.loadTexture("assets/textures/garden_gnome_diff_1k.jpg");
+        gnomeNormalMap = Utils.loadTexture("assets/textures/garden_gnome_nor_gl_1k.jpg");
+
+        groundPlaneTexture = Utils.loadTexture("assets/textures/granite_wall_diff_4k.jpg");
+        groundPlaneNormalMap = Utils.loadTexture("assets/textures/granite_wall_nor_gl_4k.jpg");
+
         skyboxTexture = Utils.loadCubeMap("assets/textures/cubemaps/storm");
         gl.glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
         // Initialize duck position
-        duckPosition.set(initialDuckPos);
-        duckDestination.set(origin);
         duckRotation.identity().rotateY((float) Math.toRadians(90));
 
         // Initialize light pos
@@ -622,10 +622,10 @@ public class Code extends JFrame implements GLEventListener {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
         // varibles for all models within the scene that are not imported
-        FloatBuffer vertBuf, texBuf, normBuf;
-        Vector3f[] vertices, normals;
+        FloatBuffer vertBuf, texBuf, normBuf, tanBuf, bitanBuf;
+        Vector3f[] vertices, normals, tangents, bitangents;
         Vector2f[] texCoords;
-        float[] pvalues, tvalues, nvalues;
+        float[] pvalues, tvalues, nvalues, tanvalues, bitanvalues;
 
         Vector3f origin = new Vector3f(0, 0, 0);
         Line worldXAxis = new Line(origin, new Vector3f(1, 0, 0));
@@ -633,7 +633,6 @@ public class Code extends JFrame implements GLEventListener {
         Line worldZAxis = new Line(origin, new Vector3f(0, 0, 1));
         Plane groundPlane = new Plane();
         Cube skyBox = new Cube();
-        Cube testCube = new Cube();
 
         gl.glGenVertexArrays(vao.length, vao, 0);
         gl.glBindVertexArray(vao[0]);
@@ -670,53 +669,125 @@ public class Code extends JFrame implements GLEventListener {
         normBuf = Buffers.newDirectFloatBuffer(groundPlane.getNormals());
         gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
 
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[7]);
+        tanBuf = Buffers.newDirectFloatBuffer(groundPlane.getTangents());
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[8]);
+        bitanBuf = Buffers.newDirectFloatBuffer(groundPlane.getBitangents());
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
         // load in rubber duck model info
         numObjVertices = rubberDuckModel.getNumVertices();
         vertices = rubberDuckModel.getVertices();
         texCoords = rubberDuckModel.getTexCoords();
         normals = rubberDuckModel.getNormals();
+        tangents = rubberDuckModel.getTangents();
+        bitangents = rubberDuckModel.getBitangents();
 
         pvalues = new float[numObjVertices*3];
         tvalues = new float[numObjVertices*2];
         nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
 
         for (int i = 0; i < numObjVertices; i++) {
             pvalues[i*3] = (float) (vertices[i]).x();
             pvalues[i*3+1] = (float) (vertices[i]).y();
             pvalues[i*3+2] = (float) (vertices[i]).z();
+
             tvalues[i*2] = (float) (texCoords[i]).x();
             tvalues[i*2+1] = (float) (texCoords[i]).y();
+
             nvalues[i*3] = (float) (normals[i]).x();
             nvalues[i*3+1] = (float) (normals[i]).y();
             nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
         }
 
         // setup model vert tex & norms
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
         vertBuf = Buffers.newDirectFloatBuffer(pvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[17]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[10]);
         texBuf = Buffers.newDirectFloatBuffer(tvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[11]);
         normBuf = Buffers.newDirectFloatBuffer(nvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
 
-        // setup testcube
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[7]);
-        vertBuf = Buffers.newDirectFloatBuffer(testCube.getVertices());
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[12]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[13]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in gnome model info
+        numObjVertices = gnomeModel.getNumVertices();
+        vertices = gnomeModel.getVertices();
+        texCoords = gnomeModel.getTexCoords();
+        normals = gnomeModel.getNormals();
+        tangents = gnomeModel.getTangents();
+        bitangents = gnomeModel.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[14]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[8]);
-        texBuf = Buffers.newDirectFloatBuffer(testCube.getTexCoords());
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[15]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
 
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
-        normBuf = Buffers.newDirectFloatBuffer(testCube.getNormals());
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[16]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
 
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[17]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
     }
 
     private void setupShadowBuffers() {
@@ -876,6 +947,5 @@ public class Code extends JFrame implements GLEventListener {
     }
     @Override
     public void dispose(GLAutoDrawable arg0) {}
-
 
 }

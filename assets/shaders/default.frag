@@ -6,6 +6,7 @@ in vec3 varyingLightDir;
 in vec3 varyingVertPos;
 in vec3 varyingHalfVector;
 in vec4 shadow_coord;
+in mat3 TBN;
 
 out vec4 fragColor;
 
@@ -30,41 +31,61 @@ uniform mat4 v_matrix;
 uniform mat4 p_matrix;
 uniform mat4 norm_matrix;
 uniform mat4 shadowMVP;
-
 uniform int tileCount;
-uniform int useTexture;
-uniform vec3 axisColor;
 
 layout (binding = 0) uniform sampler2D samp;
 layout (binding = 1) uniform sampler2DShadow shadowTex;
+layout (binding = 2) uniform sampler2D normalMap;
+
+float lookup(float x, float y)
+{  	float t = textureProj(shadowTex, shadow_coord + vec4(x * 0.001 * shadow_coord.w,
+                                                         y * 0.001 * shadow_coord.w,
+                                                         -0.01, 0.0));
+	return t;
+}
 
 void main(void) {
-    if (useTexture == 1) {
-        float gamma = 2.2;
-        vec3 textureColor = pow(texture(samp, tc).rgb, vec3(gamma));
+    float shadowFactor = 0.0;
+    float gamma = 2.2;
+    vec3 textureColor = pow(texture(samp, tc).rgb, vec3(gamma));
 
-        vec3 L = normalize(varyingLightDir);
-        vec3 N = normalize(varyingNormal);
-        vec3 V = normalize(-v_matrix[3].xyz - varyingVertPos);
-        vec3 H = normalize(varyingHalfVector);
-        
-        float cosTheta = dot(L,N);
-        float cosPhi = dot(H,N);
+    vec3 normalMapValue = texture(normalMap, tc).rgb * 2.0 - 1.0;
 
-        float notInShadow = textureProj(shadowTex, shadow_coord);
+    vec3 L = normalize(varyingLightDir);
+    //vec3 N = normalize(varyingNormal);
+    vec3 N = normalize(TBN * normalMapValue);
+    vec3 V = normalize(-v_matrix[3].xyz - varyingVertPos);
+    vec3 H = normalize(varyingHalfVector);
 
-        vec3 ambient = ((globalAmbient * material.ambient) + (light.ambient * material.ambient)).xyz * textureColor.xyz;
-        vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0) * textureColor.xyz;
-        vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess*3.0);
-        
-        fragColor = vec4(ambient, 1.0);
+    // low res pcf
+    /*
+    float swidth = 2.5;
+    vec2 o = mod(floor(gl_FragCoord.xy), 2.0) * swidth;
+    shadowFactor += lookup(-1.5*swidth + o.x,  1.5*swidth - o.y);
+    shadowFactor += lookup(-1.5*swidth + o.x, -0.5*swidth - o.y);
+    shadowFactor += lookup( 0.5*swidth + o.x,  1.5*swidth - o.y);
+    shadowFactor += lookup( 0.5*swidth + o.x, -0.5*swidth - o.y);
+    shadowFactor = shadowFactor / 4.0;
+    */
 
-        if (notInShadow == 1.0) {
-            fragColor = vec4((ambient + diffuse + specular), 1.0);
-        }
-
-        fragColor.rgb = pow(fragColor.rgb, vec3(1.0/gamma));
-    } else {
-        fragColor = vec4(axisColor, 1.0);
+    // hi res pcf
+    float width = 2.5;
+    float endp = width * 3.0 + width/2.0;
+    for (float m=-endp ; m<=endp ; m=m+width) {
+        for (float n=-endp ; n<=endp ; n=n+width) {	
+            shadowFactor += lookup(m,n);
+        }	
     }
+    shadowFactor = shadowFactor / 64.0;
+
+    float cosTheta = dot(L,N);
+    float cosPhi = dot(H,N);
+
+    vec3 ambient = ((globalAmbient * material.ambient) + (light.ambient * material.ambient)).xyz * textureColor.xyz;
+    vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0) * textureColor.xyz;
+    vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess*3.0);
+        
+    fragColor = vec4((ambient + shadowFactor * (diffuse + specular)), 1.0);
+
+    fragColor.rgb = pow(fragColor.rgb, vec3(1.0/gamma));
 }
