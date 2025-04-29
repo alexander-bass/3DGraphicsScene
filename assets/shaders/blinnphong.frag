@@ -58,7 +58,6 @@ void main(void) {
     vec3 H = normalize(varyingHalfVector);
 
     // low res pcf
-    /*
     float swidth = 2.5;
     vec2 o = mod(floor(gl_FragCoord.xy), 2.0) * swidth;
     shadowFactor += lookup(-1.5*swidth + o.x,  1.5*swidth - o.y);
@@ -66,9 +65,10 @@ void main(void) {
     shadowFactor += lookup( 0.5*swidth + o.x,  1.5*swidth - o.y);
     shadowFactor += lookup( 0.5*swidth + o.x, -0.5*swidth - o.y);
     shadowFactor = shadowFactor / 4.0;
-    */
+    
 
     // hi res pcf
+    /*
     float width = 2.5;
     float endp = width * 3.0 + width/2.0;
     for (float m=-endp ; m<=endp ; m=m+width) {
@@ -77,6 +77,7 @@ void main(void) {
         }	
     }
     shadowFactor = shadowFactor / 64.0;
+    */
 
     float cosTheta = dot(L,N);
     float cosPhi = dot(H,N);

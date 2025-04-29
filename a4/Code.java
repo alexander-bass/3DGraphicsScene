@@ -3,6 +3,7 @@ package a4;
 import javax.swing.JFrame;
 
 import static com.jogamp.opengl.GL.GL_ARRAY_BUFFER;
+import static com.jogamp.opengl.GL.GL_BACK;
 import static com.jogamp.opengl.GL.GL_CCW;
 import static com.jogamp.opengl.GL.GL_CLAMP_TO_EDGE;
 import static com.jogamp.opengl.GL.GL_COLOR_BUFFER_BIT;
@@ -14,6 +15,7 @@ import static com.jogamp.opengl.GL.GL_DEPTH_TEST;
 import static com.jogamp.opengl.GL.GL_FLOAT;
 import static com.jogamp.opengl.GL.GL_FRAMEBUFFER;
 import static com.jogamp.opengl.GL.GL_LEQUAL;
+import static com.jogamp.opengl.GL.GL_LESS;
 import static com.jogamp.opengl.GL.GL_LINEAR;
 import static com.jogamp.opengl.GL.GL_LINES;
 import static com.jogamp.opengl.GL.GL_LINE_SMOOTH;
@@ -56,7 +58,7 @@ import org.joml.*;
 public class Code extends JFrame implements GLEventListener {
     // game initialization variables
     private GLCanvas myCanvas;
-    private int renderingProgramDefault, renderingProgramCubeMap, renderingProgramShadow, renderingProgramNoTex;
+    private int renderingProgramBlinnPhong, renderingProgramCubeMap, renderingProgramShadow, renderingProgramNoTex, renderingProgramCelShading, renderingProgramOutline;
     private int vao[] = new int[1];
     private int vbo[] = new int[30];
     private Camera cam;
@@ -124,6 +126,14 @@ public class Code extends JFrame implements GLEventListener {
 	private float[] lightDiffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
 	private float[] lightSpecular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
 
+    // swap between blinn-phong and cel shading
+    private boolean celShading = true;
+    private boolean renderToggleWasPressed = false;
+
+    // testing cel shading options
+    private int numShades = 3;
+    private boolean numShadesWasPressed = false;
+
 
     public Code() {
         // setup window
@@ -184,7 +194,7 @@ public class Code extends JFrame implements GLEventListener {
         gl.glEnable(GL_POLYGON_OFFSET_FILL);
         gl.glPolygonOffset(2.0f, 4.0f);
 
-        passOne();
+        renderShadows();
 
         gl.glDisable(GL_POLYGON_OFFSET_FILL);
 
@@ -194,11 +204,15 @@ public class Code extends JFrame implements GLEventListener {
 
         gl.glDrawBuffer(GL_FRONT);
 
-        passTwo();
-
+        if (celShading) {
+            renderOutlines();
+            renderCelShaded();
+        } else {
+            renderBlinnPhong();
+        }
     }
 
-    private void passOne() {
+    private void renderShadows() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 		gl.glUseProgram(renderingProgramShadow);
 
@@ -266,24 +280,110 @@ public class Code extends JFrame implements GLEventListener {
         
     }
 
-    private void passTwo() {
+    private void renderBlinnPhong() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
-        gl.glUseProgram(renderingProgramDefault);
+        gl.glUseProgram(renderingProgramBlinnPhong);
 
-        mLoc = gl.glGetUniformLocation(renderingProgramDefault, "m_matrix");
-        vLoc = gl.glGetUniformLocation(renderingProgramDefault, "v_matrix");
-        pLoc = gl.glGetUniformLocation(renderingProgramDefault, "p_matrix");
-        nLoc = gl.glGetUniformLocation(renderingProgramDefault, "norm_matrix");
-        sLoc = gl.glGetUniformLocation(renderingProgramDefault, "shadowMVP");
-        tfLoc = gl.glGetUniformLocation(renderingProgramDefault, "tileCount");
+        mLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "m_matrix");
+        vLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "v_matrix");
+        pLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "p_matrix");
+        nLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "norm_matrix");
+        sLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "shadowMVP");
+        tfLoc = gl.glGetUniformLocation(renderingProgramBlinnPhong, "tileCount");
         
-        installLights();
+        installLights(renderingProgramBlinnPhong);
+        setMaterialPlaster(renderingProgramBlinnPhong);
 
         gl.glEnable(GL_CULL_FACE);
 		gl.glFrontFace(GL_CCW);
 		gl.glEnable(GL_DEPTH_TEST);
 		gl.glDepthFunc(GL_LEQUAL);
 
+        drawEnvironment();
+        drawRubberDuck();
+        drawGnome();
+    }
+
+    private void renderOutlines() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        gl.glUseProgram(renderingProgramOutline);
+        
+        // Get uniform locations
+        int mLoc = gl.glGetUniformLocation(renderingProgramOutline, "m_matrix");
+        int vLoc = gl.glGetUniformLocation(renderingProgramOutline, "v_matrix");
+        int pLoc = gl.glGetUniformLocation(renderingProgramOutline, "p_matrix");
+        int scaleLoc = gl.glGetUniformLocation(renderingProgramOutline, "outlineScale");
+        int colorLoc = gl.glGetUniformLocation(renderingProgramOutline, "outlineColor");
+        
+        // Set uniform values
+        gl.glUniform1f(scaleLoc, 1.02f); // Scale the model by 2%
+        gl.glUniform3f(colorLoc, 0.0f, 0.0f, 0.0f); // Black outline
+        
+        // Setup rendering state
+        gl.glEnable(GL_CULL_FACE);
+        gl.glCullFace(GL_FRONT); // Cull front faces - important for outlines!
+        gl.glEnable(GL_DEPTH_TEST);
+        gl.glDepthFunc(GL_LESS);
+        
+        // Draw duck outline
+        mMat.identity();
+        mMat.translate(initialDuckPos);
+        mMat.rotate(duckRotation);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+        gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
+        
+        // Draw gnome outline
+        mMat.identity();
+        mMat.translate(initialGnomePos);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[14]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
+        
+        // Reset to normal culling
+        gl.glCullFace(GL_BACK);
+    }
+
+    private void renderCelShaded() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        gl.glUseProgram(renderingProgramCelShading);
+    
+        // Set up uniforms like in passTwo()
+        mLoc = gl.glGetUniformLocation(renderingProgramCelShading, "m_matrix");
+        vLoc = gl.glGetUniformLocation(renderingProgramCelShading, "v_matrix");
+        pLoc = gl.glGetUniformLocation(renderingProgramCelShading, "p_matrix");
+        nLoc = gl.glGetUniformLocation(renderingProgramCelShading, "norm_matrix");
+        sLoc = gl.glGetUniformLocation(renderingProgramCelShading, "shadowMVP");
+        tfLoc = gl.glGetUniformLocation(renderingProgramCelShading, "tileCount");
+        
+        // Add cel shader specific uniform locations
+        int numShadesLoc = gl.glGetUniformLocation(renderingProgramCelShading, "numShades");
+        int specCutoffLoc = gl.glGetUniformLocation(renderingProgramCelShading, "specularCutoff");
+        
+        // Set cel shader values
+        gl.glUniform1i(numShadesLoc, numShades); // 3 shades of lighting
+        gl.glUniform1f(specCutoffLoc, 0.7f); // Specular highlight threshold
+        
+        installLights(renderingProgramCelShading);
+        setMaterialPlaster(renderingProgramCelShading);
+
+        gl.glEnable(GL_CULL_FACE);
+        gl.glFrontFace(GL_CCW);
+        gl.glEnable(GL_DEPTH_TEST);
+        gl.glDepthFunc(GL_LEQUAL);
+    
         drawEnvironment();
         drawRubberDuck();
         drawGnome();
@@ -367,8 +467,6 @@ public class Code extends JFrame implements GLEventListener {
     private void drawEnvironment() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
-        setMaterialPlaster();
-
         mMat.identity();
         mMat.rotate(rotateQuat.rotationX((float) Math.toRadians(90)));
         mMat.scale(3f);
@@ -427,8 +525,6 @@ public class Code extends JFrame implements GLEventListener {
     
     private void drawRubberDuck() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
-
-        setMaterialPlaster();
         
         mMat.identity();
         mMat.translate(initialDuckPos);
@@ -513,8 +609,6 @@ public class Code extends JFrame implements GLEventListener {
 
     private void drawGnome() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
-
-        setMaterialPlaster();
         
         mMat.identity();
         mMat.translate(initialGnomePos);
@@ -573,10 +667,12 @@ public class Code extends JFrame implements GLEventListener {
         rubberDuckModel = new ImportedModel("assets/models/rubber_duck_toy_1k.obj");
         gnomeModel = new ImportedModel("assets/models/garden_gnome_1k.obj");
 
-        renderingProgramDefault = Utils.createShaderProgram("assets/shaders/default.vert", "assets/shaders/default.frag");
+        renderingProgramBlinnPhong = Utils.createShaderProgram("assets/shaders/blinnphong.vert", "assets/shaders/blinnphong.frag");
         renderingProgramCubeMap = Utils.createShaderProgram("assets/shaders/cubemap.vert", "assets/shaders/cubemap.frag");
         renderingProgramShadow = Utils.createShaderProgram("assets/shaders/shadowmap.vert", "assets/shaders/shadowmap.frag");
         renderingProgramNoTex = Utils.createShaderProgram("assets/shaders/notex.vert", "assets/shaders/notex.frag");
+        renderingProgramCelShading = Utils.createShaderProgram("assets/shaders/celshading.vert", "assets/shaders/celshading.frag");
+        renderingProgramOutline = Utils.createShaderProgram("assets/shaders/outlines.vert", "assets/shaders/outlines.frag");
 
         // set perspective matrix, only changes when screen is resized
         aspect = (float) myCanvas.getWidth() / (float) myCanvas.getHeight();
@@ -810,35 +906,35 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
-    private void installLights() {
+    private void installLights(int renderingProgram) {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 		
 		lightPos[0]=currentLightPos.x(); lightPos[1]=currentLightPos.y(); lightPos[2]=currentLightPos.z();
 		
 		// get the locations of the light and material fields in the shader
-		globalAmbLoc = gl.glGetUniformLocation(renderingProgramDefault, "globalAmbient");
-		ambLoc = gl.glGetUniformLocation(renderingProgramDefault, "light.ambient");
-		diffLoc = gl.glGetUniformLocation(renderingProgramDefault, "light.diffuse");
-		specLoc = gl.glGetUniformLocation(renderingProgramDefault, "light.specular");
-		posLoc = gl.glGetUniformLocation(renderingProgramDefault, "light.position");
+		globalAmbLoc = gl.glGetUniformLocation(renderingProgram, "globalAmbient");
+		ambLoc = gl.glGetUniformLocation(renderingProgram, "light.ambient");
+		diffLoc = gl.glGetUniformLocation(renderingProgram, "light.diffuse");
+		specLoc = gl.glGetUniformLocation(renderingProgram, "light.specular");
+		posLoc = gl.glGetUniformLocation(renderingProgram, "light.position");
 	
 		//  set the uniform light and material values in the shader
-		gl.glProgramUniform4fv(renderingProgramDefault, globalAmbLoc, 1, globalAmbient, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, ambLoc, 1, lightAmbient, 0);
+		gl.glProgramUniform4fv(renderingProgram, globalAmbLoc, 1, globalAmbient, 0);
+		gl.glProgramUniform4fv(renderingProgram, ambLoc, 1, lightAmbient, 0);
 
         if (renderLight) {
-            gl.glProgramUniform4fv(renderingProgramDefault, diffLoc, 1, lightDiffuse, 0);
-            gl.glProgramUniform4fv(renderingProgramDefault, specLoc, 1, lightSpecular, 0);
+            gl.glProgramUniform4fv(renderingProgram, diffLoc, 1, lightDiffuse, 0);
+            gl.glProgramUniform4fv(renderingProgram, specLoc, 1, lightSpecular, 0);
         } else {
             float[] zeroLight = new float[] { 0.0f, 0.0f, 0.0f, 1.0f };
-            gl.glProgramUniform4fv(renderingProgramDefault, diffLoc, 1, zeroLight, 0);
-            gl.glProgramUniform4fv(renderingProgramDefault, specLoc, 1, zeroLight, 0);
+            gl.glProgramUniform4fv(renderingProgram, diffLoc, 1, zeroLight, 0);
+            gl.glProgramUniform4fv(renderingProgram, specLoc, 1, zeroLight, 0);
         }
 
-		gl.glProgramUniform3fv(renderingProgramDefault, posLoc, 1, lightPos, 0);
+		gl.glProgramUniform3fv(renderingProgram, posLoc, 1, lightPos, 0);
     }
 
-    private void setMaterialPlaster() {
+    private void setMaterialPlaster(int renderingProgram) {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
         float[] matAmb = Utils.plasterAmbient();
@@ -846,15 +942,15 @@ public class Code extends JFrame implements GLEventListener {
         float[] matSpe = Utils.plasterSpecular();
         float matShi = Utils.plasterShininess();
 
-        mambLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.ambient");
-		mdiffLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.diffuse");
-		mspecLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.specular");
-		mshiLoc = gl.glGetUniformLocation(renderingProgramDefault, "material.shininess");
+        mambLoc = gl.glGetUniformLocation(renderingProgram, "material.ambient");
+		mdiffLoc = gl.glGetUniformLocation(renderingProgram, "material.diffuse");
+		mspecLoc = gl.glGetUniformLocation(renderingProgram, "material.specular");
+		mshiLoc = gl.glGetUniformLocation(renderingProgram, "material.shininess");
 
-        gl.glProgramUniform4fv(renderingProgramDefault, mambLoc, 1, matAmb, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mdiffLoc, 1, matDif, 0);
-		gl.glProgramUniform4fv(renderingProgramDefault, mspecLoc, 1, matSpe, 0);
-		gl.glProgramUniform1f(renderingProgramDefault, mshiLoc, matShi);
+        gl.glProgramUniform4fv(renderingProgram, mambLoc, 1, matAmb, 0);
+		gl.glProgramUniform4fv(renderingProgram, mdiffLoc, 1, matDif, 0);
+		gl.glProgramUniform4fv(renderingProgram, mspecLoc, 1, matSpe, 0);
+		gl.glProgramUniform1f(renderingProgram, mshiLoc, matShi);
     }
 
     private void handleInput(float time) {
@@ -889,12 +985,24 @@ public class Code extends JFrame implements GLEventListener {
         }
         lightToggleWasPressed = lightTogglePressed;
 
+        boolean renderTogglePressed = inputManager.isKeyPressed(KeyEvent.VK_B);
+        if (renderTogglePressed && !renderToggleWasPressed) {
+            celShading = !celShading;   
+        }
+        renderToggleWasPressed = renderTogglePressed;
+
         if (inputManager.isKeyPressed(KeyEvent.VK_I)) currentLightPos.z -= lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_K)) currentLightPos.z += lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_J)) currentLightPos.x -= lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_L)) currentLightPos.x += lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_U)) currentLightPos.y += lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_O)) currentLightPos.y -= lightSpeed * time;
+
+        boolean numShadesPressed = inputManager.isKeyPressed(KeyEvent.VK_1);
+        if (numShadesPressed && !numShadesWasPressed) {
+            numShades = (numShades + 1) % 10;   
+        }
+        numShadesWasPressed = numShadesPressed;
     }
 
     public static void main(String[] args) { new Code(); }
