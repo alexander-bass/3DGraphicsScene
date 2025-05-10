@@ -293,12 +293,22 @@ public class Utils
 	public static int loadCubeMap(String dirName)
 	{	GL4 gl = (GL4) GLContext.getCurrentGL();
 		
+		/*
 		String topFile = dirName + File.separator + "yp.jpg";
 		String leftFile = dirName + File.separator + "xn.jpg";
 		String backFile = dirName + File.separator + "zn.jpg";
 		String rightFile = dirName + File.separator + "xp.jpg";
 		String frontFile = dirName + File.separator + "zp.jpg";
 		String bottomFile = dirName + File.separator + "yn.jpg";
+		*/
+		
+		String topFile = dirName + File.separator + "py.png";
+		String leftFile = dirName + File.separator + "nx.png";
+		String backFile = dirName + File.separator + "nz.png";
+		String rightFile = dirName + File.separator + "px.png";
+		String frontFile = dirName + File.separator + "pz.png";
+		String bottomFile = dirName + File.separator + "ny.png";
+		
 		
 		BufferedImage topImage = getBufferedImage(topFile);
 		BufferedImage leftImage = getBufferedImage(leftFile);

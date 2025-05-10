@@ -7,6 +7,7 @@ in vec3 varyingVertPos;
 in vec3 varyingHalfVector;
 in vec4 shadow_coord;
 in mat3 TBN;
+in vec3 vertEyeSpacePos;
 
 out vec4 fragColor;
 
@@ -33,6 +34,12 @@ uniform mat4 norm_matrix;
 uniform mat4 shadowMVP;
 uniform int tileCount;
 
+// Fog uniforms
+uniform vec3 fogColor;
+uniform float fogStart;
+uniform float fogEnd;
+uniform bool fogEnabled;
+
 layout (binding = 0) uniform sampler2D samp;
 layout (binding = 1) uniform sampler2DShadow shadowTex;
 layout (binding = 2) uniform sampler2D normalMap;
@@ -52,7 +59,6 @@ void main(void) {
     vec3 normalMapValue = texture(normalMap, tc).rgb * 2.0 - 1.0;
 
     vec3 L = normalize(varyingLightDir);
-    //vec3 N = normalize(varyingNormal);
     vec3 N = normalize(TBN * normalMapValue);
     vec3 V = normalize(-v_matrix[3].xyz - varyingVertPos);
     vec3 H = normalize(varyingHalfVector);
@@ -65,19 +71,6 @@ void main(void) {
     shadowFactor += lookup( 0.5*swidth + o.x,  1.5*swidth - o.y);
     shadowFactor += lookup( 0.5*swidth + o.x, -0.5*swidth - o.y);
     shadowFactor = shadowFactor / 4.0;
-    
-
-    // hi res pcf
-    /*
-    float width = 2.5;
-    float endp = width * 3.0 + width/2.0;
-    for (float m=-endp ; m<=endp ; m=m+width) {
-        for (float n=-endp ; n<=endp ; n=n+width) {	
-            shadowFactor += lookup(m,n);
-        }	
-    }
-    shadowFactor = shadowFactor / 64.0;
-    */
 
     float cosTheta = dot(L,N);
     float cosPhi = dot(H,N);
@@ -89,4 +82,12 @@ void main(void) {
     fragColor = vec4((ambient + shadowFactor * (diffuse + specular)), 1.0);
 
     fragColor.rgb = pow(fragColor.rgb, vec3(1.0/gamma));
+
+    // Add fog calculation
+    if (fogEnabled) {
+        float dist = length(vertEyeSpacePos);
+        float fogFactor = (fogEnd - dist) / (fogEnd - fogStart);
+        fogFactor = clamp(fogFactor, 0.0, 1.0);
+        fragColor.rgb = mix(fogColor, fragColor.rgb, fogFactor);
+    }
 }

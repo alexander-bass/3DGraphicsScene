@@ -6,6 +6,7 @@ in vec3 varyingLightDir;
 in vec3 varyingVertPos;
 in vec4 shadow_coord;
 in mat3 TBN;
+in vec3 vertEyeSpacePos;
 
 out vec4 fragColor;
 
@@ -31,6 +32,12 @@ uniform mat4 p_matrix;
 uniform mat4 norm_matrix;
 uniform mat4 shadowMVP;
 uniform int tileCount;
+
+// Fog uniforms
+uniform vec3 fogColor;
+uniform float fogStart;
+uniform float fogEnd;
+uniform bool fogEnabled;
 
 // Cel shading uniforms
 uniform int numShades = 3;     // Number of lighting levels
@@ -60,11 +67,10 @@ void main(void) {
     vec3 normalMapValue = texture(normalMap, tc).rgb * 2.0 - 1.0;
 
     // Get normalized vectors
-    // vec3 N = normalize(varyingNormal);
     vec3 N = normalize(TBN * normalMapValue);
     vec3 V = normalize(-varyingVertPos);
     vec3 L = normalize(varyingLightDir);
-    vec3 H = normalize(L + V);  // Halfway vector
+    vec3 H = normalize(L + V);
 
     // Shadow calculation
     float swidth = 2.5;
@@ -94,4 +100,12 @@ void main(void) {
 
     // Gamma correction
     fragColor.rgb = pow(fragColor.rgb, vec3(1.0/gamma));
+
+    // Add fog calculation
+    if (fogEnabled) {
+        float dist = length(vertEyeSpacePos);
+        float fogFactor = (fogEnd - dist) / (fogEnd - fogStart);
+        fogFactor = clamp(fogFactor, 0.0, 1.0);
+        fragColor.rgb = mix(fogColor, fragColor.rgb, fogFactor);
+    }
 }

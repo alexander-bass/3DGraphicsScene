@@ -12,6 +12,7 @@ out vec3 varyingLightDir;
 out vec3 varyingVertPos;
 out vec4 shadow_coord;
 out mat3 TBN;
+out vec3 vertEyeSpacePos;
 
 struct PositionalLight
 {   vec4 ambient;
@@ -53,6 +54,8 @@ void main(void) {
     
     shadow_coord = shadowMVP * vec4(vertPos, 1.0);
 
+
+    vertEyeSpacePos = (v_matrix * m_matrix * vec4(vertPos,1.0)).xyz;
     gl_Position = p_matrix * v_matrix * m_matrix * vec4(vertPos,1.0);
 
     tc = texCoord;

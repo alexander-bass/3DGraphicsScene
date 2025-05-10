@@ -4,10 +4,12 @@ import javax.swing.JFrame;
 
 import static com.jogamp.opengl.GL.GL_ARRAY_BUFFER;
 import static com.jogamp.opengl.GL.GL_BACK;
+import static com.jogamp.opengl.GL.GL_BLEND;
 import static com.jogamp.opengl.GL.GL_CCW;
 import static com.jogamp.opengl.GL.GL_CLAMP_TO_EDGE;
 import static com.jogamp.opengl.GL.GL_COLOR_BUFFER_BIT;
 import static com.jogamp.opengl.GL.GL_CULL_FACE;
+import static com.jogamp.opengl.GL.GL_CW;
 import static com.jogamp.opengl.GL.GL_DEPTH_ATTACHMENT;
 import static com.jogamp.opengl.GL.GL_DEPTH_BUFFER_BIT;
 import static com.jogamp.opengl.GL.GL_DEPTH_COMPONENT32;
@@ -20,10 +22,12 @@ import static com.jogamp.opengl.GL.GL_LINEAR;
 import static com.jogamp.opengl.GL.GL_LINES;
 import static com.jogamp.opengl.GL.GL_LINE_SMOOTH;
 import static com.jogamp.opengl.GL.GL_POLYGON_OFFSET_FILL;
+import static com.jogamp.opengl.GL.GL_SRC_ALPHA;
 import static com.jogamp.opengl.GL.GL_STATIC_DRAW;
 import static com.jogamp.opengl.GL.GL_TEXTURE0;
 import static com.jogamp.opengl.GL.GL_TEXTURE1;
 import static com.jogamp.opengl.GL.GL_TEXTURE2;
+import static com.jogamp.opengl.GL.GL_TEXTURE3;
 import static com.jogamp.opengl.GL.GL_TEXTURE_2D;
 import static com.jogamp.opengl.GL.GL_TEXTURE_CUBE_MAP;
 import static com.jogamp.opengl.GL.GL_TEXTURE_MAG_FILTER;
@@ -37,6 +41,7 @@ import static com.jogamp.opengl.GL2ES2.GL_TEXTURE_COMPARE_FUNC;
 import static com.jogamp.opengl.GL2ES2.GL_TEXTURE_COMPARE_MODE;
 import static com.jogamp.opengl.GL2GL3.GL_TEXTURE_CUBE_MAP_SEAMLESS;
 import static com.jogamp.opengl.GL.GL_NONE;
+import static com.jogamp.opengl.GL.GL_ONE_MINUS_SRC_ALPHA;
 import static com.jogamp.opengl.GL.GL_FRONT;
 
 import java.nio.FloatBuffer;
@@ -58,17 +63,18 @@ import org.joml.*;
 public class Code extends JFrame implements GLEventListener {
     // game initialization variables
     private GLCanvas myCanvas;
-    private int renderingProgramBlinnPhong, renderingProgramCubeMap, renderingProgramShadow, renderingProgramNoTex, renderingProgramCelShading, renderingProgramOutline;
+    private int renderingProgramBlinnPhong, renderingProgramCubeMap, renderingProgramShadow, renderingProgramNoTex, renderingProgramCelShading, renderingProgramOutline, renderingProgramGlass;
     private int vao[] = new int[1];
-    private int vbo[] = new int[30];
+    private int vbo[] = new int[70];
     private Camera cam;
     private InputManager inputManager;
 
     // variables for imported models and textures
     private int numObjVertices;
-    private ImportedModel rubberDuckModel, gnomeModel;
-    private int skyboxTexture, groundPlaneTexture, rubberDuckTexture, gnomeTexture;
-    private int groundPlaneNormalMap, rubberDuckNormalMap, gnomeNormalMap;
+    private ImportedModel spiderModel, gnomeModel, televisionModel, benchModel, cabinetModel, nightstandModel, rock1Model, rock2Model, tree1Model, tree2Model;
+    private Cube glassCube;
+    private int skyboxTexture, groundPlaneTexture, spiderTexture, gnomeTexture, televisionTexture, benchTexture, cabinetTexture, nightstandTexture, baseTexture, rock1Texture, rock2Texture, tree1Texture, tree2Texture;
+    private int groundPlaneNormalMap, spiderNormalMap, gnomeNormalMap, televisionNormalMap, benchNormalMap, cabinetNormalMap, nightstandNormalMap, baseNormalMap, rock1NormalMap, rock2NormalMap, tree1NormalMap, tree2NormalMap;
 
     // display function variables
     private FloatBuffer vals = Buffers.newDirectFloatBuffer(16);
@@ -88,16 +94,64 @@ public class Code extends JFrame implements GLEventListener {
     // camera control input variables
     private float yaw, pitch, forward, up, right;
 
-    // rotate facade
-    private Quaternionf rotateQuat = new Quaternionf();
+    // light/cam inital positions
+    private Vector3f initialLightPos = new Vector3f(0f, 2.8f, -0.5f);
+    private Vector3f initialCameraPos = new Vector3f(0, 0.5f, 3);
 
-    // inital positions
-    private Vector3f initialLightPos = new Vector3f(0f, 0f, 3.0f);
-    private Vector3f initialDuckPos = new Vector3f(0, 0, 1);
-    private Vector3f initialCameraPos = new Vector3f(0, 0, 2);
-    private Vector3f initialGnomePos = new Vector3f(1, 0, 1);
-    private Quaternionf duckRotation = new Quaternionf();
+
+    // model inital position info
+    private Vector3f initialSpiderPos = new Vector3f(0, 0.85f, 0.5f);
+    private Quaternionf initialSpiderRotation = new Quaternionf().rotationY((float)Math.toRadians(-135));
+    private Vector3f initialSpiderScale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialGnomePos = new Vector3f(-1.5f, 0.9f, 0);
+    private Quaternionf initialGnomeRotation = new Quaternionf().rotationY((float)Math.toRadians(90));
+    private Vector3f initialGnomeScale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialTelevisionPos = new Vector3f(1.5f, 1.44f, 0f);
+    private Quaternionf initialTelevisionRotation = new Quaternionf().rotationY((float)Math.toRadians(-90));
+    private Vector3f initialTelevisionScale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialBenchPos = new Vector3f(-1.5f, 0.25f, 0);
+    private Quaternionf initialBenchRotation = new Quaternionf().rotationY((float)Math.toRadians(90));
+    private Vector3f initialBenchScale = new Vector3f(1, 1, 1);
     
+    private Vector3f initialCabinetPos = new Vector3f(1.5f, 0.25f, 0);
+    private Quaternionf initialCabinetRotation = new Quaternionf().rotationY((float)Math.toRadians(-90));
+    private Vector3f initialCabinetScale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialNightstandPos = new Vector3f(-1.5f, 0.25f, 0.9f);
+    private Quaternionf initialNightstandRotation = new Quaternionf().rotationY((float)Math.toRadians(90));
+    private Vector3f initialNightstandScale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialRock1Pos = new Vector3f(0.55f, 0.225f, -1.275f);
+    private Quaternionf initialRock1Rotation = new Quaternionf().identity();
+    private Vector3f initialRock1Scale = new Vector3f(1, 1, 1);
+
+    private Vector3f initialRock2Pos = new Vector3f(0, 0.225f, 0.5f);
+    private Quaternionf initialRock2Rotation = new Quaternionf().rotationY((float)Math.toRadians(45));
+    private Vector3f initialRock2Scale = new Vector3f(1.5f, 1, 1.5f);
+
+    private Vector3f initialTree1Pos = new Vector3f(-1f, 0f, -1.175f);
+    private Quaternionf initialTree1Rotation = new Quaternionf().rotationY((float)Math.toRadians(180));
+    private Vector3f initialTree1Scale = new Vector3f(0.9f, 1, 0.9f);
+
+    private Vector3f initialTree2Pos = new Vector3f(1.25f, 0.225f, 1.25f);
+    private Quaternionf initialTree2Rotation = new Quaternionf().identity();
+    private Vector3f initialTree2Scale = new Vector3f(1.5f, 1.5f, 1.5f);
+
+    private Vector3f initialGlassCubePos = new Vector3f(0, 1.5f, 0);
+    private Quaternionf initialGlassCubeRotation = new Quaternionf().identity();
+    private Vector3f initialGlassCubeScale = new Vector3f(1.9f, 1.5f, 1.9f);
+
+    private Vector3f initialBasePos = new Vector3f(0, 0, 0);
+    private Quaternionf initialBaseRotation = new Quaternionf().identity();
+    private Vector3f initialBaseScale = new Vector3f(2, 0.25f, 2);
+
+    private Vector3f initialGroundPos = new Vector3f(0, 0.251f, 0);
+    private Quaternionf initialGroundRotation = new Quaternionf().identity();
+    private Vector3f initialGroundScale = new Vector3f(1.9f, 1.9f, 1.9f);
+
     // for the light to point at
     private Vector3f origin = new Vector3f(0, 0, 0);
     private Vector3f upVec = new Vector3f(0, 1, 0);
@@ -130,14 +184,21 @@ public class Code extends JFrame implements GLEventListener {
     private boolean celShading = true;
     private boolean renderToggleWasPressed = false;
 
-    // testing cel shading options
+    // cel shading options
     private int numShades = 3;
-    private boolean numShadesWasPressed = false;
+
+    // fog parameters
+    private boolean fogEnabled = true;
+    private float[] fogColor = new float[] { 0.5f, 0.5f, 0.6f }; // Bluish gray
+    private float fogStart = 1f;
+    private float fogEnd = 10f;
+    private int fogEnabledLoc, fogColorLoc, fogStartLoc, fogEndLoc;
+    private boolean fogToggleWasPressed = false;
 
 
     public Code() {
         // setup window
-        setTitle("CSC155 - Assignment 3");
+        setTitle("CSC155 - Assignment 4");
         setSize(1000, 1000);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -181,7 +242,6 @@ public class Code extends JFrame implements GLEventListener {
 
         drawSkybox();
         drawWorldAxes();
-        drawLight();
 
         lightVmat.identity().setLookAt(currentLightPos, origin, upVec);
         lightPmat.identity().setPerspective((float) Math.toRadians(90), aspect, 0.1f, 1000.0f);
@@ -210,6 +270,10 @@ public class Code extends JFrame implements GLEventListener {
         } else {
             renderBlinnPhong();
         }
+
+        drawLight();
+
+        renderTransparent();
     }
 
     private void renderShadows() {
@@ -226,8 +290,9 @@ public class Code extends JFrame implements GLEventListener {
 
         // draw ground plane
         mMat.identity();
-        mMat.rotate(rotateQuat.rotationX((float) Math.toRadians(90)));
-        mMat.scale(3f);
+        mMat.translate(initialGroundPos);
+        mMat.rotate(initialGroundRotation);
+        mMat.scale(initialGroundScale);
 
         shadowMVP1.identity();
         shadowMVP1.mul(lightPmat);
@@ -241,29 +306,12 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glEnableVertexAttribArray(0);
 
         gl.glDrawArrays(GL_TRIANGLES, 0, 18);
-
-        // draw duck
-        mMat.identity();
-        mMat.translate(initialDuckPos);
-        mMat.rotate(duckRotation);
-        
-        shadowMVP1.identity();
-        shadowMVP1.mul(lightPmat);
-        shadowMVP1.mul(lightVmat);
-        shadowMVP1.mul(mMat);
-        
-        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
-
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
-		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(0);
-
-        gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
-        
         
         // draw gnome
         mMat.identity();
         mMat.translate(initialGnomePos);
+        mMat.rotate(initialGnomeRotation);
+        mMat.scale(initialGnomeScale);
 
         shadowMVP1.identity();
         shadowMVP1.mul(lightPmat);
@@ -277,6 +325,195 @@ public class Code extends JFrame implements GLEventListener {
         gl.glEnableVertexAttribArray(0);
 
         gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
+
+        // draw television
+        mMat.identity();
+        mMat.translate(initialTelevisionPos);
+        mMat.rotate(initialTelevisionRotation);
+        mMat.scale(initialTelevisionScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[19]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, televisionModel.getNumVertices());
+
+        // Draw bench
+        mMat.identity();
+        mMat.translate(initialBenchPos);
+        mMat.rotate(initialBenchRotation);
+        mMat.scale(initialBenchScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[24]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, benchModel.getNumVertices());
+
+        // Draw cabinet
+        mMat.identity();
+        mMat.translate(initialCabinetPos);
+        mMat.rotate(initialCabinetRotation);
+        mMat.scale(initialCabinetScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[29]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, cabinetModel.getNumVertices());
+
+        // Draw nightstand
+        mMat.identity();
+        mMat.translate(initialNightstandPos);
+        mMat.rotate(initialNightstandRotation);
+        mMat.scale(initialNightstandScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[34]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, nightstandModel.getNumVertices());
+
+        // Draw rock1
+        mMat.identity();
+        mMat.translate(initialRock1Pos);
+        mMat.rotate(initialRock1Rotation);
+        mMat.scale(initialRock1Scale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[42]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, rock1Model.getNumVertices());
+
+        // Draw rock2
+        mMat.identity();
+        mMat.translate(initialRock2Pos);
+        mMat.rotate(initialRock2Rotation);
+        mMat.scale(initialRock2Scale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[47]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, rock2Model.getNumVertices());
+
+        // Draw tree1
+        mMat.identity();
+        mMat.translate(initialTree1Pos);
+        mMat.rotate(initialTree1Rotation);
+        mMat.scale(initialTree1Scale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[52]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, tree1Model.getNumVertices());
+
+        // Draw tree2
+        mMat.identity();
+        mMat.translate(initialTree2Pos);
+        mMat.rotate(initialTree2Rotation);
+        mMat.scale(initialTree2Scale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[57]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, tree2Model.getNumVertices());
+
+        // Draw spider
+        mMat.identity();
+        mMat.translate(initialSpiderPos);
+        mMat.rotate(initialSpiderRotation);
+        mMat.scale(initialSpiderScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, spiderModel.getNumVertices());
+
+        // draw glass cube
+        mMat.identity();
+        mMat.translate(initialGlassCubePos);
+        mMat.scale(initialGlassCubeScale);
+        
+        shadowMVP1.identity();
+        shadowMVP1.mul(lightPmat);
+        shadowMVP1.mul(lightVmat);
+        shadowMVP1.mul(mMat);
+        
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP1.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[39]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, 36);
         
     }
 
@@ -293,15 +530,27 @@ public class Code extends JFrame implements GLEventListener {
         
         installLights(renderingProgramBlinnPhong);
         setMaterialPlaster(renderingProgramBlinnPhong);
+        setupFogUniforms(renderingProgramBlinnPhong);
 
         gl.glEnable(GL_CULL_FACE);
 		gl.glFrontFace(GL_CCW);
 		gl.glEnable(GL_DEPTH_TEST);
 		gl.glDepthFunc(GL_LEQUAL);
 
-        drawEnvironment();
-        drawRubberDuck();
+        drawGround();
         drawGnome();
+        drawTelevision();
+        drawBench();
+        drawCabinet();
+        drawNightstand();
+        drawRock1();
+        drawRock2();
+        drawTree1();
+        drawTree2();
+        drawSpider();
+
+        gl.glProgramUniform1i(renderingProgramBlinnPhong, fogEnabledLoc, 0);
+        drawBase();
     }
 
     private void renderOutlines() {
@@ -325,32 +574,149 @@ public class Code extends JFrame implements GLEventListener {
         gl.glEnable(GL_DEPTH_TEST);
         gl.glDepthFunc(GL_LESS);
         
-        // Draw duck outline
-        mMat.identity();
-        mMat.translate(initialDuckPos);
-        mMat.rotate(duckRotation);
-        
-        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
-        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
-        gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-        
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
-        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-        gl.glEnableVertexAttribArray(0);
-        
-        gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
         
         // Draw gnome outline
         mMat.identity();
         mMat.translate(initialGnomePos);
+        mMat.rotate(initialGnomeRotation);
+        mMat.scale(initialGnomeScale);
         
         gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+        gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
         
         gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[14]);
         gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
         gl.glEnableVertexAttribArray(0);
         
         gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
+
+        // Draw television outline
+        mMat.identity();
+        mMat.translate(initialTelevisionPos);
+        mMat.rotate(initialTelevisionRotation);
+        mMat.scale(initialTelevisionScale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[19]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, televisionModel.getNumVertices());
+
+        // Draw bench outline
+        mMat.identity();
+        mMat.translate(initialBenchPos);
+        mMat.rotate(initialBenchRotation);
+        mMat.scale(initialBenchScale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[24]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, benchModel.getNumVertices());
+
+        // Draw cabinet outline
+        mMat.identity();
+        mMat.translate(initialCabinetPos);
+        mMat.rotate(initialCabinetRotation);
+        mMat.scale(initialCabinetScale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[29]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, cabinetModel.getNumVertices());
+
+        // Draw nightstand outline
+        mMat.identity();
+        mMat.translate(initialNightstandPos);
+        mMat.rotate(initialNightstandRotation);
+        mMat.scale(initialNightstandScale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[34]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, nightstandModel.getNumVertices());
+
+        // Draw rock1 outline
+        mMat.identity();
+        mMat.translate(initialRock1Pos);
+        mMat.rotate(initialRock1Rotation);
+        mMat.scale(initialRock1Scale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[42]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, rock1Model.getNumVertices());
+
+        // Draw rock2 outline
+        mMat.identity();
+        mMat.translate(initialRock2Pos);
+        mMat.rotate(initialRock2Rotation);
+        mMat.scale(initialRock2Scale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[47]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, rock2Model.getNumVertices());
+
+        // Draw spider outline
+        mMat.identity();
+        mMat.translate(initialSpiderPos);
+        mMat.rotate(initialSpiderRotation);
+        mMat.scale(initialSpiderScale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, spiderModel.getNumVertices());
+
+        // Draw tree1 outline
+        mMat.identity();
+        mMat.translate(initialTree1Pos);
+        mMat.rotate(initialTree1Rotation);
+        mMat.scale(initialTree1Scale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniform1f(scaleLoc, 1.005f);
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[52]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, tree1Model.getNumVertices());
+
+        // Draw tree2 outline
+        mMat.identity();
+        mMat.translate(initialTree2Pos);
+        mMat.rotate(initialTree2Rotation);
+        mMat.scale(initialTree2Scale);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[57]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glDrawArrays(GL_TRIANGLES, 0, tree2Model.getNumVertices());
         
         // Reset to normal culling
         gl.glCullFace(GL_BACK);
@@ -360,7 +726,7 @@ public class Code extends JFrame implements GLEventListener {
         GL4 gl = (GL4) GLContext.getCurrentGL();
         gl.glUseProgram(renderingProgramCelShading);
     
-        // Set up uniforms like in passTwo()
+        // Set up uniforms
         mLoc = gl.glGetUniformLocation(renderingProgramCelShading, "m_matrix");
         vLoc = gl.glGetUniformLocation(renderingProgramCelShading, "v_matrix");
         pLoc = gl.glGetUniformLocation(renderingProgramCelShading, "p_matrix");
@@ -378,15 +744,68 @@ public class Code extends JFrame implements GLEventListener {
         
         installLights(renderingProgramCelShading);
         setMaterialPlaster(renderingProgramCelShading);
+        setupFogUniforms(renderingProgramCelShading);
 
         gl.glEnable(GL_CULL_FACE);
         gl.glFrontFace(GL_CCW);
         gl.glEnable(GL_DEPTH_TEST);
         gl.glDepthFunc(GL_LEQUAL);
     
-        drawEnvironment();
-        drawRubberDuck();
+        drawGround();
         drawGnome();
+        drawTelevision();
+        drawBench();
+        drawCabinet();
+        drawNightstand();
+        drawRock1();
+        drawRock2();
+        drawTree1();
+        drawTree2();
+        drawSpider();
+
+        // disable fog for base
+        gl.glProgramUniform1i(renderingProgramCelShading, fogEnabledLoc, 0);
+        drawBase();
+    }
+
+    private void renderTransparent() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+    
+        // Enable blending for transparency
+        gl.glEnable(GL_BLEND);
+        gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        gl.glDepthMask(false);
+
+        gl.glUseProgram(renderingProgramGlass);
+
+        mLoc = gl.glGetUniformLocation(renderingProgramGlass, "m_matrix");
+        vLoc = gl.glGetUniformLocation(renderingProgramGlass, "v_matrix");
+        pLoc = gl.glGetUniformLocation(renderingProgramGlass, "p_matrix");
+        nLoc = gl.glGetUniformLocation(renderingProgramGlass, "norm_matrix");
+        sLoc = gl.glGetUniformLocation(renderingProgramGlass, "shadowMVP");
+
+        // Set up the reflection/refraction uniforms
+        int refractionIndexLoc = gl.glGetUniformLocation(renderingProgramGlass, "refractionIndex");
+        int fresnelBiasLoc = gl.glGetUniformLocation(renderingProgramGlass, "fresnelBias");
+        int fresnelScaleLoc = gl.glGetUniformLocation(renderingProgramGlass, "fresnelScale");
+        int fresnelPowerLoc = gl.glGetUniformLocation(renderingProgramGlass, "fresnelPower");
+        
+        gl.glUniform1f(refractionIndexLoc, 1.52f);  // Glass refraction index
+        gl.glUniform1f(fresnelBiasLoc, 0.1f);       // Fresnel bias
+        gl.glUniform1f(fresnelScaleLoc, 1.0f);      // Fresnel scale
+        gl.glUniform1f(fresnelPowerLoc, 2.0f);      // Fresnel power
+        
+        // Add lighting/material
+        installLights(renderingProgramGlass);
+        setMaterialGlass(renderingProgramGlass);
+        
+        // Draw the glass cube
+        drawGlassCube();
+        
+        // Restore state
+        gl.glDepthMask(true);
+        gl.glDisable(GL_BLEND);
     }
 
     private void drawSkybox() {
@@ -413,7 +832,6 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glDisable(GL_DEPTH_TEST);
 		gl.glDrawArrays(GL_TRIANGLES, 0, 36);
 		gl.glEnable(GL_DEPTH_TEST);
-
     }
 
     private void drawWorldAxes() {
@@ -464,12 +882,13 @@ public class Code extends JFrame implements GLEventListener {
         gl.glDrawArrays(GL_LINES, 0, 2);
     }
 
-    private void drawEnvironment() {
+    private void drawGround() {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
         mMat.identity();
-        mMat.rotate(rotateQuat.rotationX((float) Math.toRadians(90)));
-        mMat.scale(3f);
+        mMat.translate(initialGroundPos);
+        mMat.rotate(initialGroundRotation);
+        mMat.scale(initialGroundScale);
 
         mMat.invert(invTrMat);
         invTrMat.transpose(invTrMat);
@@ -512,67 +931,10 @@ public class Code extends JFrame implements GLEventListener {
 
         gl.glActiveTexture(GL_TEXTURE2);
 		gl.glBindTexture(GL_TEXTURE_2D, groundPlaneNormalMap);
-        /*
-        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        */
 
+        gl.glDisable(GL_CULL_FACE);
 		gl.glDrawArrays(GL_TRIANGLES, 0, 18);
-
-        gl.glDisableVertexAttribArray(3);
-        gl.glDisableVertexAttribArray(4);
-    }
-    
-    private void drawRubberDuck() {
-        GL4 gl = (GL4) GLContext.getCurrentGL();
-        
-        mMat.identity();
-        mMat.translate(initialDuckPos);
-        mMat.rotate(duckRotation);
-
-        mMat.invert(invTrMat);
-        invTrMat.transpose(invTrMat);
-
-        shadowMVP2.identity();
-        shadowMVP2.mul(b);
-        shadowMVP2.mul(lightPmat);
-        shadowMVP2.mul(lightVmat);
-        shadowMVP2.mul(mMat);
-
-		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
-        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
-		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
-        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
-        gl.glUniform1i(tfLoc, 1);
-
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
-		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(0);
-
-		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[10]);
-		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(1);
-
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[11]);
-		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(2);
-
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[12]);
-		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(3);
-
-        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[13]);
-		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
-		gl.glEnableVertexAttribArray(4);
-
-		gl.glActiveTexture(GL_TEXTURE0);
-		gl.glBindTexture(GL_TEXTURE_2D, rubberDuckTexture);
-
-        gl.glActiveTexture(GL_TEXTURE2);
-		gl.glBindTexture(GL_TEXTURE_2D, rubberDuckNormalMap);
-
-		gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
+        gl.glEnable(GL_CULL_FACE);
     }
 
     private void drawLight() {
@@ -590,21 +952,20 @@ public class Code extends JFrame implements GLEventListener {
         gl.glEnable(GL_DEPTH_TEST);
         gl.glDepthFunc(GL_LEQUAL);
         
-        // Draw a small duck at light position
         mMat.identity();
         mMat.translate(currentLightPos);
-        mMat.scale(0.3f); // Small size for the light indicator
+        mMat.scale(0.3f);
         
         gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
         gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
         gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
-        gl.glUniform3f(acLoc, 1.0f, 1.0f, 0.0f); // Yellow color
+        gl.glUniform3f(acLoc, 1.0f, 1.0f, 0.0f);
         
         gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
         gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
         gl.glEnableVertexAttribArray(0);
         
-        gl.glDrawArrays(GL_TRIANGLES, 0, rubberDuckModel.getNumVertices());
+        gl.glDrawArrays(GL_TRIANGLES, 0, spiderModel.getNumVertices());
     }
 
     private void drawGnome() {
@@ -612,6 +973,8 @@ public class Code extends JFrame implements GLEventListener {
         
         mMat.identity();
         mMat.translate(initialGnomePos);
+        mMat.rotate(initialGnomeRotation);
+        mMat.scale(initialGnomeScale);
 
         mMat.invert(invTrMat);
         invTrMat.transpose(invTrMat);
@@ -659,13 +1022,603 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glDrawArrays(GL_TRIANGLES, 0, gnomeModel.getNumVertices());
     }
 
+    private void drawTelevision() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialTelevisionPos);
+        mMat.rotate(initialTelevisionRotation);
+        mMat.scale(initialTelevisionScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[19]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[20]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[21]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[22]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[23]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, televisionTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, televisionNormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, televisionModel.getNumVertices());
+    }
+
+    private void drawBench() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialBenchPos);
+        mMat.rotate(initialBenchRotation);
+        mMat.scale(initialBenchScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[24]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[25]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[26]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[27]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[28]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, benchTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, benchNormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, benchModel.getNumVertices());
+    }
+
+    private void drawCabinet() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialCabinetPos);
+        mMat.rotate(initialCabinetRotation);
+        mMat.scale(initialCabinetScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[29]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[30]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[31]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[32]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[33]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, cabinetTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, cabinetNormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, cabinetModel.getNumVertices());
+    }
+
+    private void drawNightstand() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialNightstandPos);
+        mMat.rotate(initialNightstandRotation);
+        mMat.scale(initialNightstandScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[34]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[35]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[36]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[37]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[38]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, nightstandTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, nightstandNormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, nightstandModel.getNumVertices());
+    }
+
+    private void drawGlassCube() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+
+        mMat.identity();
+        mMat.translate(initialGlassCubePos);
+        mMat.rotate(initialGlassCubeRotation);
+        mMat.scale(initialGlassCubeScale);
+        
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+        
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+        
+        gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+        gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[39]);
+        gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(0);
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[40]);
+        gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(1);
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[41]);
+        gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+        gl.glEnableVertexAttribArray(2);
+        
+        gl.glActiveTexture(GL_TEXTURE0);
+        gl.glBindTexture(GL_TEXTURE_2D, groundPlaneTexture);
+        
+        gl.glActiveTexture(GL_TEXTURE3);
+        gl.glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+        
+        gl.glDisable(GL_CULL_FACE);
+        gl.glDrawArrays(GL_TRIANGLES, 0, 36);
+        gl.glEnable(GL_CULL_FACE);
+
+    }
+
+    private void drawBase() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialBasePos);
+        mMat.rotate(initialBaseRotation);
+        mMat.scale(initialBaseScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[39]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[40]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[41]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, baseTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, baseNormalMap);
+
+        gl.glDisable(GL_CULL_FACE);
+		gl.glDrawArrays(GL_TRIANGLES, 0, 36);
+        gl.glEnable(GL_CULL_FACE);
+    }
+
+    private void drawRock1() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialRock1Pos);
+        mMat.rotate(initialRock1Rotation);
+        mMat.scale(initialRock1Scale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[42]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[43]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[44]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[45]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[46]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, rock1Texture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, rock1NormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, rock1Model.getNumVertices());
+    }
+
+    private void drawRock2() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialRock2Pos);
+        mMat.rotate(initialRock2Rotation);
+        mMat.scale(initialRock2Scale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[47]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[48]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[49]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[50]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[51]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, rock2Texture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, rock2NormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, rock2Model.getNumVertices());
+    }
+
+    private void drawTree1() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialTree1Pos);
+        mMat.rotate(initialTree1Rotation);
+        mMat.scale(initialTree1Scale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[52]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[53]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[54]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[55]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[56]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, tree1Texture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, tree1NormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, tree1Model.getNumVertices());
+    }
+
+    private void drawTree2() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialTree2Pos);
+        mMat.rotate(initialTree2Rotation);
+        mMat.scale(initialTree2Scale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[57]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[58]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[59]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[60]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[61]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, tree2Texture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, tree2NormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, tree2Model.getNumVertices());
+    }
+
+    private void drawSpider() {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        mMat.identity();
+        mMat.translate(initialSpiderPos);
+        mMat.rotate(initialSpiderRotation);
+        mMat.scale(initialSpiderScale);
+
+        mMat.invert(invTrMat);
+        invTrMat.transpose(invTrMat);
+
+        shadowMVP2.identity();
+        shadowMVP2.mul(b);
+        shadowMVP2.mul(lightPmat);
+        shadowMVP2.mul(lightVmat);
+        shadowMVP2.mul(mMat);
+
+		gl.glUniformMatrix4fv(mLoc, 1, false, mMat.get(vals));
+        gl.glUniformMatrix4fv(vLoc, 1, false, vMat.get(vals));
+		gl.glUniformMatrix4fv(pLoc, 1, false, pMat.get(vals));
+        gl.glUniformMatrix4fv(nLoc, 1, false, invTrMat.get(vals));
+        gl.glUniformMatrix4fv(sLoc, 1, false, shadowMVP2.get(vals));
+        gl.glUniform1i(tfLoc, 1);
+
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[9]);
+		gl.glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(0);
+
+		gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[10]);
+		gl.glVertexAttribPointer(1, 2, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(1);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[11]);
+		gl.glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(2);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[12]);
+		gl.glVertexAttribPointer(3, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(3);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[13]);
+		gl.glVertexAttribPointer(4, 3, GL_FLOAT, false, 0, 0);
+		gl.glEnableVertexAttribArray(4);
+
+		gl.glActiveTexture(GL_TEXTURE0);
+		gl.glBindTexture(GL_TEXTURE_2D, spiderTexture);
+
+        gl.glActiveTexture(GL_TEXTURE2);
+		gl.glBindTexture(GL_TEXTURE_2D, spiderNormalMap);
+
+		gl.glDrawArrays(GL_TRIANGLES, 0, spiderModel.getNumVertices());
+    }
+
     @Override
     public void init(GLAutoDrawable drawable) {
         GL4 gl = (GL4) GLContext.getCurrentGL();
 
         // import models and create rendering program by compiling and linking shaders
-        rubberDuckModel = new ImportedModel("assets/models/rubber_duck_toy_1k.obj");
+        spiderModel = new ImportedModel("assets/models/Tarantula.obj");
         gnomeModel = new ImportedModel("assets/models/garden_gnome_1k.obj");
+        televisionModel = new ImportedModel("assets/models/Television_01_1k.obj");
+        benchModel = new ImportedModel("assets/models/painted_wooden_bench_1k.obj");
+        cabinetModel = new ImportedModel("assets/models/painted_wooden_cabinet_1k.obj");
+        nightstandModel = new ImportedModel("assets/models/painted_wooden_nightstand_1k.obj");
+        rock1Model = new ImportedModel("assets/models/namaqualand_boulder_02_1k.obj");
+        rock2Model = new ImportedModel("assets/models/namaqualand_boulder_05_1k.obj");
+        tree1Model = new ImportedModel("assets/models/didelta_spinosa_1k.obj");
+        tree2Model = new ImportedModel("assets/models/quiver_tree_02_1k.obj");
+        
 
         renderingProgramBlinnPhong = Utils.createShaderProgram("assets/shaders/blinnphong.vert", "assets/shaders/blinnphong.frag");
         renderingProgramCubeMap = Utils.createShaderProgram("assets/shaders/cubemap.vert", "assets/shaders/cubemap.frag");
@@ -673,14 +1626,20 @@ public class Code extends JFrame implements GLEventListener {
         renderingProgramNoTex = Utils.createShaderProgram("assets/shaders/notex.vert", "assets/shaders/notex.frag");
         renderingProgramCelShading = Utils.createShaderProgram("assets/shaders/celshading.vert", "assets/shaders/celshading.frag");
         renderingProgramOutline = Utils.createShaderProgram("assets/shaders/outlines.vert", "assets/shaders/outlines.frag");
+        renderingProgramGlass = Utils.createShaderProgram("assets/shaders/glass.vert", "assets/shaders/glass.frag");
+
 
         // set perspective matrix, only changes when screen is resized
         aspect = (float) myCanvas.getWidth() / (float) myCanvas.getHeight();
         pMat.setPerspective((float) Math.toRadians(60.0f), aspect, 0.1f, 1000.0f);
 
+        // Initialize light pos
+        currentLightPos.set(initialLightPos);
+
         // setup the vertex and texture information for all models in the scene
         setupVertices();
         setupShadowBuffers();
+        
 
         b.set(
 			0.5f, 0.0f, 0.0f, 0.0f,
@@ -691,26 +1650,50 @@ public class Code extends JFrame implements GLEventListener {
         // create a camera and define it's initial location and orientation
         cam = new Camera();
         cam.setLocation(initialCameraPos);
-        cam.lookAt(0, 0, 0);
+        cam.lookAt(0, 1.5f, 0);
         
         // load all textures that will be used
-        rubberDuckTexture =  Utils.loadTexture("assets/textures/rubber_duck_toy_diff_1k.jpg");
-        rubberDuckNormalMap = Utils.loadTexture("assets/textures/rubber_duck_toy_nor_gl_1k.jpg");
+        // ground/skybox
+        groundPlaneTexture = Utils.loadTexture("assets/textures/gravelly_sand_diff_4k.jpg");
+        groundPlaneNormalMap = Utils.loadTexture("assets/textures/gravelly_sand_nor_gl_4k.jpg");
+
+        skyboxTexture = Utils.loadCubeMap("assets/textures/cubemaps/night-sky");
+        gl.glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+        // models
+        spiderTexture =  Utils.loadTexture("assets/textures/Tarantula.png");
+        spiderNormalMap = Utils.loadTexture("assets/textures/rosewood_veneer1_nor_gl_4k.jpg");
 
         gnomeTexture = Utils.loadTexture("assets/textures/garden_gnome_diff_1k.jpg");
         gnomeNormalMap = Utils.loadTexture("assets/textures/garden_gnome_nor_gl_1k.jpg");
 
-        groundPlaneTexture = Utils.loadTexture("assets/textures/granite_wall_diff_4k.jpg");
-        groundPlaneNormalMap = Utils.loadTexture("assets/textures/granite_wall_nor_gl_4k.jpg");
+        televisionTexture = Utils.loadTexture("assets/textures/Television_01_diff_1k.jpg");
+        televisionNormalMap = Utils.loadTexture("assets/textures/Television_01_nor_gl_1k.jpg");
 
-        skyboxTexture = Utils.loadCubeMap("assets/textures/cubemaps/storm");
-        gl.glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+        benchTexture = Utils.loadTexture("assets/textures/painted_wooden_bench_diff_1k.jpg");
+        benchNormalMap = Utils.loadTexture("assets/textures/painted_wooden_bench_nor_gl_1k.jpg");
 
-        // Initialize duck position
-        duckRotation.identity().rotateY((float) Math.toRadians(90));
+        cabinetTexture = Utils.loadTexture("assets/textures/painted_wooden_cabinet_diff_1k.jpg");
+        cabinetNormalMap = Utils.loadTexture("assets/textures/painted_wooden_cabinet_nor_gl_1k.jpg");
 
-        // Initialize light pos
-        currentLightPos.set(initialLightPos);
+        nightstandTexture = Utils.loadTexture("assets/textures/painted_wooden_nightstand_diff_1k.jpg");
+        nightstandNormalMap = Utils.loadTexture("assets/textures/painted_wooden_nightstand_nor_gl_1k.jpg");
+
+        baseTexture = Utils.loadTexture("assets/textures/rosewood_veneer1_diff_4k.jpg");
+        baseNormalMap = Utils.loadTexture("assets/textures/rosewood_veneer1_nor_gl_4k.jpg");
+        
+        rock1Texture = Utils.loadTexture("assets/textures/namaqualand_boulder_02_diff_1k.jpg");
+        rock1NormalMap = Utils.loadTexture("assets/textures/namaqualand_boulder_02_nor_gl_1k.jpg");
+
+        rock2Texture = Utils.loadTexture("assets/textures/namaqualand_boulder_05_diff_1k.jpg");
+        rock2NormalMap = Utils.loadTexture("assets/textures/namaqualand_boulder_05_nor_gl_1k.jpg");
+
+        tree1Texture = Utils.loadTexture("assets/textures/didelta_spinosa_diff_1k.jpg");
+        tree1NormalMap = Utils.loadTexture("assets/textures/didelta_spinosa_nor_gl_1k.jpg");
+
+        tree2Texture = Utils.loadTexture("assets/textures/quiver_tree_02_diff_1k.jpg");
+        tree2NormalMap = Utils.loadTexture("assets/textures/quiver_tree_02_nor_gl_1k.jpg");
+
     }
 
     private void setupVertices() {
@@ -772,13 +1755,13 @@ public class Code extends JFrame implements GLEventListener {
         bitanBuf = Buffers.newDirectFloatBuffer(groundPlane.getBitangents());
         gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
 
-        // load in rubber duck model info
-        numObjVertices = rubberDuckModel.getNumVertices();
-        vertices = rubberDuckModel.getVertices();
-        texCoords = rubberDuckModel.getTexCoords();
-        normals = rubberDuckModel.getNormals();
-        tangents = rubberDuckModel.getTangents();
-        bitangents = rubberDuckModel.getBitangents();
+        // load in spider model info
+        numObjVertices = spiderModel.getNumVertices();
+        vertices = spiderModel.getVertices();
+        texCoords = spiderModel.getTexCoords();
+        normals = spiderModel.getNormals();
+        tangents = spiderModel.getTangents();
+        bitangents = spiderModel.getBitangents();
 
         pvalues = new float[numObjVertices*3];
         tvalues = new float[numObjVertices*2];
@@ -883,6 +1866,470 @@ public class Code extends JFrame implements GLEventListener {
         gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[18]);
         bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
         gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in television model info
+        numObjVertices = televisionModel.getNumVertices();
+        vertices = televisionModel.getVertices();
+        texCoords = televisionModel.getTexCoords();
+        normals = televisionModel.getNormals();
+        tangents = televisionModel.getTangents();
+        bitangents = televisionModel.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[19]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[20]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[21]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[22]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[23]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+         // load in bench model info
+        numObjVertices = benchModel.getNumVertices();
+        vertices = benchModel.getVertices();
+        texCoords = benchModel.getTexCoords();
+        normals = benchModel.getNormals();
+        tangents = benchModel.getTangents();
+        bitangents = benchModel.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[24]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[25]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[26]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[27]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[28]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in cabinet model info
+        numObjVertices = cabinetModel.getNumVertices();
+        vertices = cabinetModel.getVertices();
+        texCoords = cabinetModel.getTexCoords();
+        normals = cabinetModel.getNormals();
+        tangents = cabinetModel.getTangents();
+        bitangents = cabinetModel.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[29]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[30]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[31]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[32]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[33]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in nightstand model info
+        numObjVertices = nightstandModel.getNumVertices();
+        vertices = nightstandModel.getVertices();
+        texCoords = nightstandModel.getTexCoords();
+        normals = nightstandModel.getNormals();
+        tangents = nightstandModel.getTangents();
+        bitangents = nightstandModel.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[34]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[35]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[36]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[37]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[38]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // setup glass cube
+        glassCube = new Cube();
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[39]);
+        vertBuf = Buffers.newDirectFloatBuffer(glassCube.getVertices());
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[40]);
+        texBuf = Buffers.newDirectFloatBuffer(glassCube.getTexCoords());
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+        
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[41]);
+        normBuf = Buffers.newDirectFloatBuffer(glassCube.getNormals());
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        // load in rock1 model info
+        numObjVertices = rock1Model.getNumVertices();
+        vertices = rock1Model.getVertices();
+        texCoords = rock1Model.getTexCoords();
+        normals = rock1Model.getNormals();
+        tangents = rock1Model.getTangents();
+        bitangents = rock1Model.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[42]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[43]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[44]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[45]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[46]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in rock2 model info
+        numObjVertices = rock2Model.getNumVertices();
+        vertices = rock2Model.getVertices();
+        texCoords = rock2Model.getTexCoords();
+        normals = rock2Model.getNormals();
+        tangents = rock2Model.getTangents();
+        bitangents = rock2Model.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[47]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[48]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[49]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[50]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[51]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+         // load in tree1 model info
+        numObjVertices = tree1Model.getNumVertices();
+        vertices = tree1Model.getVertices();
+        texCoords = tree1Model.getTexCoords();
+        normals = tree1Model.getNormals();
+        tangents = tree1Model.getTangents();
+        bitangents = tree1Model.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[52]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[53]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[54]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[55]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[56]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
+        // load in tree2 model info
+        numObjVertices = tree2Model.getNumVertices();
+        vertices = tree2Model.getVertices();
+        texCoords = tree2Model.getTexCoords();
+        normals = tree2Model.getNormals();
+        tangents = tree2Model.getTangents();
+        bitangents = tree2Model.getBitangents();
+
+        pvalues = new float[numObjVertices*3];
+        tvalues = new float[numObjVertices*2];
+        nvalues = new float[numObjVertices*3];
+        tanvalues = new float[numObjVertices*3];
+        bitanvalues = new float[numObjVertices*3];
+
+        for (int i = 0; i < numObjVertices; i++) {
+            pvalues[i*3] = (float) (vertices[i]).x();
+            pvalues[i*3+1] = (float) (vertices[i]).y();
+            pvalues[i*3+2] = (float) (vertices[i]).z();
+
+            tvalues[i*2] = (float) (texCoords[i]).x();
+            tvalues[i*2+1] = (float) (texCoords[i]).y();
+
+            nvalues[i*3] = (float) (normals[i]).x();
+            nvalues[i*3+1] = (float) (normals[i]).y();
+            nvalues[i*3+2] = (float) (normals[i]).z();
+
+            tanvalues[i*3] = (float) (tangents[i]).x();
+            tanvalues[i*3+1] = (float) (tangents[i]).y();
+            tanvalues[i*3+2] = (float) (tangents[i]).z();
+
+            bitanvalues[i*3] = (float) (bitangents[i]).x();
+            bitanvalues[i*3+1] = (float) (bitangents[i]).y();
+            bitanvalues[i*3+2] = (float) (bitangents[i]).z();
+        }
+
+        // setup model vert tex & norms
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[57]);
+        vertBuf = Buffers.newDirectFloatBuffer(pvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, vertBuf.limit() * 4, vertBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[58]);
+        texBuf = Buffers.newDirectFloatBuffer(tvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, texBuf.limit() * 4, texBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[59]);
+        normBuf = Buffers.newDirectFloatBuffer(nvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, normBuf.limit() * 4, normBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[60]);
+        tanBuf = Buffers.newDirectFloatBuffer(tanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, tanBuf.limit() * 4, tanBuf, GL_STATIC_DRAW);
+
+        gl.glBindBuffer(GL_ARRAY_BUFFER, vbo[61]);
+        bitanBuf = Buffers.newDirectFloatBuffer(bitanvalues);
+        gl.glBufferData(GL_ARRAY_BUFFER, bitanBuf.limit() * 4, bitanBuf, GL_STATIC_DRAW);
+
     }
 
     private void setupShadowBuffers() {
@@ -904,6 +2351,20 @@ public class Code extends JFrame implements GLEventListener {
 		// may reduce shadow border artifacts
 		gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+
+    private void setupFogUniforms(int renderingProgram) {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+    
+        fogEnabledLoc = gl.glGetUniformLocation(renderingProgram, "fogEnabled");
+        fogColorLoc = gl.glGetUniformLocation(renderingProgram, "fogColor");
+        fogStartLoc = gl.glGetUniformLocation(renderingProgram, "fogStart");
+        fogEndLoc = gl.glGetUniformLocation(renderingProgram, "fogEnd");
+        
+        gl.glProgramUniform1i(renderingProgram, fogEnabledLoc, fogEnabled ? 1 : 0);
+        gl.glProgramUniform3fv(renderingProgram, fogColorLoc, 1, fogColor, 0);
+        gl.glProgramUniform1f(renderingProgram, fogStartLoc, fogStart);
+        gl.glProgramUniform1f(renderingProgram, fogEndLoc, fogEnd);
     }
 
     private void installLights(int renderingProgram) {
@@ -953,6 +2414,30 @@ public class Code extends JFrame implements GLEventListener {
 		gl.glProgramUniform1f(renderingProgram, mshiLoc, matShi);
     }
 
+    private void setMaterialGlass(int renderingProgram) {
+        GL4 gl = (GL4) GLContext.getCurrentGL();
+        
+        float[] matAmb = new float[] { 0.1f, 0.1f, 0.2f, 1.0f };   // Slightly blue tint
+        float[] matDif = new float[] { 0.2f, 0.2f, 0.3f, 1.0f };   // Low diffuse for glass
+        float[] matSpe = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };   // High specular
+        float matShi = 150.0f;                                     // High shininess
+        float matAlpha = 0.4f;                                     // Transparency level
+        
+        // Get uniform locations
+        mambLoc = gl.glGetUniformLocation(renderingProgram, "material.ambient");
+        mdiffLoc = gl.glGetUniformLocation(renderingProgram, "material.diffuse");
+        mspecLoc = gl.glGetUniformLocation(renderingProgram, "material.specular");
+        mshiLoc = gl.glGetUniformLocation(renderingProgram, "material.shininess");
+        int malphaLoc = gl.glGetUniformLocation(renderingProgram, "material.alpha");
+        
+        // Set uniform values
+        gl.glProgramUniform4fv(renderingProgram, mambLoc, 1, matAmb, 0);
+        gl.glProgramUniform4fv(renderingProgram, mdiffLoc, 1, matDif, 0);
+        gl.glProgramUniform4fv(renderingProgram, mspecLoc, 1, matSpe, 0);
+        gl.glProgramUniform1f(renderingProgram, mshiLoc, matShi);
+        gl.glProgramUniform1f(renderingProgram, malphaLoc, matAlpha);
+    }
+
     private void handleInput(float time) {
         // handle different user input to move the camera around the scene
         // rotation direction determined by pos/neg yaw and pitch
@@ -998,11 +2483,11 @@ public class Code extends JFrame implements GLEventListener {
         if (inputManager.isKeyPressed(KeyEvent.VK_U)) currentLightPos.y += lightSpeed * time;
         if (inputManager.isKeyPressed(KeyEvent.VK_O)) currentLightPos.y -= lightSpeed * time;
 
-        boolean numShadesPressed = inputManager.isKeyPressed(KeyEvent.VK_1);
-        if (numShadesPressed && !numShadesWasPressed) {
-            numShades = (numShades + 1) % 10;   
+        boolean fogTogglePressed = inputManager.isKeyPressed(KeyEvent.VK_F);
+        if (fogTogglePressed && !fogToggleWasPressed) {
+            fogEnabled = !fogEnabled;   
         }
-        numShadesWasPressed = numShadesPressed;
+        fogToggleWasPressed = fogTogglePressed;
     }
 
     public static void main(String[] args) { new Code(); }
