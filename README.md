@@ -1,4 +1,4 @@
-#3DGraphicsScene
+# 3DGraphicsScene
 
 A little 3d scene. Created as a final project for CSC155 - Computer Graphics and Shader Programming.
 
